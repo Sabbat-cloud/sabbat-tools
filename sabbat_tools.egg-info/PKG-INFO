@@ -1,11 +1,11 @@
 Metadata-Version: 2.4
 Name: sabbat-tools
-Version: 0.1.0
+Version: 0.3.1
 Summary: CLI toolbox: sabbat-loganalyce & sabbat-fileinspect
 Author: Óscar Giménez Blasco
 License: MIT
-Project-URL: Homepage, https://github.com/sabbat-cloud/sabbat-tools
-Project-URL: Issues, https://github.com/sabbat-cloud/sabbat-tools/issues
+Project-URL: Homepage, https://github.com/Sabbat-cloud/sabbat-tools
+Project-URL: Issues, https://github.com/Sabbat-cloud/sabbat-tools/issues
 Keywords: cli,logs,security,forensics,sysadmin,devops,sre
 Requires-Python: >=3.8
 Description-Content-Type: text/markdown
@@ -20,7 +20,6 @@ Requires-Dist: python-magic>=0.4.27; platform_system != "Windows" and extra == "
 Requires-Dist: python-magic-bin>=0.4.14; platform_system == "Windows" and extra == "detect"
 Provides-Extra: hardened
 Requires-Dist: regex>=2024.5.15; extra == "hardened"
-Requires-Dist: re2>=0.3.3; extra == "hardened"
 Dynamic: license-file
 
 # 🧰 sabbat-tools — CLI toolbox

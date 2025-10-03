@@ -25,7 +25,7 @@ detect = [
   "python-magic>=0.4.27; platform_system != 'Windows'",
   "python-magic-bin>=0.4.14; platform_system == 'Windows'"
 ]
-hardened = ["regex>=2024.5.15", "re2>=0.3.3"]
+hardened = ["regex>=2024.5.15"]
 
 [project.scripts]
 sabbat-loganalyce = "sabbat_tools.loganalyce:cli_main"
