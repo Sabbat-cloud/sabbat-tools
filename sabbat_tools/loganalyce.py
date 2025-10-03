@@ -1143,7 +1143,7 @@ def main():
     )
 
 def cli_main():
-    raise SystemExit(main())
+    main()
 
 if __name__ == "__main__":
     cli_main()
