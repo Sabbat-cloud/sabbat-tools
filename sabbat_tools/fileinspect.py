@@ -583,7 +583,7 @@ def parse_algos(s: str) -> Tuple[str, ...]:
         raise argparse.ArgumentTypeError("Empty algorithm list")
     return tuple(parts)
 
-def main(): -> int:
+def main() -> int:
     global T
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("-h", "--help", action="store_true")

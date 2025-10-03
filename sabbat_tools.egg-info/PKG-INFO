@@ -23,7 +23,7 @@ Requires-Dist: regex>=2024.5.15; extra == "hardened"
 Requires-Dist: re2>=0.3.3; extra == "hardened"
 Dynamic: license-file
 
-# 🧰 sabbat-utilidades — CLI toolbox
+# 🧰 sabbat-tools — CLI toolbox
 
 Colección de utilidades de sistema y seguridad.  
 Collection of system & security command-line tools.
@@ -51,8 +51,8 @@ Collection of system & security command-line tools.
 ## 🚀 Instalación / Installation
 
 ```bash
-git clone https://github.com/sabbat-cloud/sabbat-utilidades
-cd sabbat-utilidades
+git clone https://github.com/sabbat-cloud/sabbat-tools
+cd sabbat-tools
 
 # Dependencias base
 pip install -r requirements.txt
@@ -60,6 +60,9 @@ pip install -r requirements.txt
 # O instala el paquete (expone los CLIs en PATH)
 pip install .
 Tras pip install . tendrás los comandos sabbat-loganalyce y sabbat-fileinspect en tu PATH. After pip install ., CLIs are available on PATH.
+
+# Con extras
+pip install -e ".[geoip,images,detect,hardened]"
 
 🧱 Requisitos / Requirements
 Python 3.8+
@@ -201,7 +204,7 @@ Añade nuevos comandos como secciones independientes en este README.
 📜 Licencia / License
 MIT
 
-Repo: https://github.com/sabbat-cloud/sabbat-utilidades
+Repo: https://github.com/sabbat-cloud/sabbat-tools
 
 
 ---
@@ -209,7 +212,7 @@ Repo: https://github.com/sabbat-cloud/sabbat-utilidades
 ## `CHANGELOG.md`
 
 ```markdown
-# Changelog — sabbat-utilidades
+# Changelog — sabbat-tools
 
 Todas las fechas en UTC.  
 All dates in UTC.
