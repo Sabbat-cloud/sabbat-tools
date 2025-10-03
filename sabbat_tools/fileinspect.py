@@ -583,7 +583,7 @@ def parse_algos(s: str) -> Tuple[str, ...]:
         raise argparse.ArgumentTypeError("Empty algorithm list")
     return tuple(parts)
 
-def main():
+def main(): -> int:
     global T
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("-h", "--help", action="store_true")
@@ -720,8 +720,10 @@ def main():
             print(json.dumps({"error": f"{T['unexpected_error']}: {str(e)}"}, indent=2, ensure_ascii=False))
         else:
             err(f"{T['unexpected_error']}: {e}")
-        sys.exit(1)
+        return exit_code
+
+def cli_main():
+    raise SystemExit(main())
 
 if __name__ == "__main__":
-    main()
-
+    cli_main()

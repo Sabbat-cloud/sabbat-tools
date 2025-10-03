@@ -1,0 +1,19 @@
+
+[detect]
+chardet>=5.1.0
+
+[detect:platform_system != "Windows"]
+python-magic>=0.4.27
+
+[detect:platform_system == "Windows"]
+python-magic-bin>=0.4.14
+
+[geoip]
+geoip2>=4.6.0
+
+[hardened]
+regex>=2024.5.15
+re2>=0.3.3
+
+[images]
+Pillow>=10.0.0

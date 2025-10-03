@@ -1104,7 +1104,7 @@ def main():
             print(json.dumps({"error": msg}, indent=2, ensure_ascii=False))
         else:
             print(f"{c_err}{msg}{c_reset}")
-        sys.exit(1)
+        return exit_code
 
     analyzer = LogAnalyzer(
         args.file,
@@ -1142,6 +1142,8 @@ def main():
         force=args.force,
     )
 
-if __name__ == "__main__":
-    main()
+def cli_main():
+    raise SystemExit(main())
 
+if __name__ == "__main__":
+    cli_main()

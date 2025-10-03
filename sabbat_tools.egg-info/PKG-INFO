@@ -1,4 +1,29 @@
-# 🧰 sabbat-tools — CLI toolbox
+Metadata-Version: 2.4
+Name: sabbat-tools
+Version: 0.1.0
+Summary: CLI toolbox: sabbat-loganalyce & sabbat-fileinspect
+Author: Óscar Giménez Blasco
+License: MIT
+Project-URL: Homepage, https://github.com/sabbat-cloud/sabbat-tools
+Project-URL: Issues, https://github.com/sabbat-cloud/sabbat-tools/issues
+Keywords: cli,logs,security,forensics,sysadmin,devops,sre
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Provides-Extra: geoip
+Requires-Dist: geoip2>=4.6.0; extra == "geoip"
+Provides-Extra: images
+Requires-Dist: Pillow>=10.0.0; extra == "images"
+Provides-Extra: detect
+Requires-Dist: chardet>=5.1.0; extra == "detect"
+Requires-Dist: python-magic>=0.4.27; platform_system != "Windows" and extra == "detect"
+Requires-Dist: python-magic-bin>=0.4.14; platform_system == "Windows" and extra == "detect"
+Provides-Extra: hardened
+Requires-Dist: regex>=2024.5.15; extra == "hardened"
+Requires-Dist: re2>=0.3.3; extra == "hardened"
+Dynamic: license-file
+
+# 🧰 sabbat-utilidades — CLI toolbox
 
 Colección de utilidades de sistema y seguridad.  
 Collection of system & security command-line tools.
@@ -26,8 +51,8 @@ Collection of system & security command-line tools.
 ## 🚀 Instalación / Installation
 
 ```bash
-git clone https://github.com/sabbat-cloud/sabbat-tools
-cd sabbat-tools
+git clone https://github.com/sabbat-cloud/sabbat-utilidades
+cd sabbat-utilidades
 
 # Dependencias base
 pip install -r requirements.txt
@@ -35,9 +60,6 @@ pip install -r requirements.txt
 # O instala el paquete (expone los CLIs en PATH)
 pip install .
 Tras pip install . tendrás los comandos sabbat-loganalyce y sabbat-fileinspect en tu PATH. After pip install ., CLIs are available on PATH.
-
-# Con extras
-pip install -e ".[geoip,images,detect,hardened]"
 
 🧱 Requisitos / Requirements
 Python 3.8+
@@ -179,7 +201,7 @@ Añade nuevos comandos como secciones independientes en este README.
 📜 Licencia / License
 MIT
 
-Repo: https://github.com/sabbat-cloud/sabbat-tools
+Repo: https://github.com/sabbat-cloud/sabbat-utilidades
 
 
 ---
@@ -187,7 +209,7 @@ Repo: https://github.com/sabbat-cloud/sabbat-tools
 ## `CHANGELOG.md`
 
 ```markdown
-# Changelog — sabbat-tools
+# Changelog — sabbat-utilidades
 
 Todas las fechas en UTC.  
 All dates in UTC.
