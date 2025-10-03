@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.8", "3.10", "3.12"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Upgrade pip
+        run: |
+          python -m pip install --upgrade pip
+
+      - name: Install package (base)
+        run: |
+          pip install -e .
+
+      - name: Lint (ruff)
+        run: |
+          pip install ruff
+          ruff --version
+          ruff check .
+
+      - name: Smoke tests (help screens)
+        run: |
+          sabbat-loganalyce --help | head -n 30
+          sabbat-fileinspect --help | head -n 30
+
+      - name: Extras (optional)
+        if: always()
+        run: |
+          pip install -e ".[detect,images,hardened]"
+          python -c "import importlib; importlib.import_module('sabbat_tools.loganalyce')"
+          python -c "import importlib; importlib.import_module('sabbat_tools.fileinspect')"
+

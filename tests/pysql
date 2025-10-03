@@ -1,0 +1,22 @@
+
+---
+
+# 6) Tests rápidos (opcional, recomendados)
+
+Archivo: `tests/test_smoke.py`
+
+```python
+import subprocess
+import sys
+
+def run(cmd):
+    return subprocess.run(cmd, shell=True, text=True, capture_output=True, check=True)
+
+def test_help_loganalyce():
+    out = run("sabbat-loganalyce --help").stdout
+    assert "sabbat-loganalyce" in out or "usage" in out.lower()
+
+def test_help_fileinspect():
+    out = run("sabbat-fileinspect --help").stdout
+    assert "sabbat-fileinspect" in out or "usage" in out.lower()
+
