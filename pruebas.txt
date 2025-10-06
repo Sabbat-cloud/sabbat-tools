@@ -1,0 +1,8 @@
+# Verbose con prints visibles y resumen final
+pytest -vv -s -ra
+
+# Solo los tests de loganalyce, verbose y top lentos
+pytest tests/test_loganalyce.py -vv --durations=10
+
+# Parar en el primer fallo y mostrar locals
+pytest -vv --maxfail=1 -l
