@@ -1,212 +1,252 @@
------
+---
 
-# 🧰 sabbat-tools — CLI toolbox
+````markdown
+# README.md
 
-**EN:** A collection of system and security command-line tools designed for automation and safety.  
-**ES:** Una colección de utilidades de sistema y seguridad diseñadas para la automatización y la seguridad.
+# 🧰 sabbat-tools — System & Security CLI Toolbox
 
-| ✅ Bilingüe (auto/en/es) | ✅ Seguro por defecto | ✅ Listo para producción | ✅ Pensado para automatización (JSON) |
-| :--- | :--- | :--- | :--- |
-| ✅ Bilingual (auto/en/es) | ✅ Safe-by-default | ✅ Production-ready | ✅ Designed for automation (JSON) |
+[![CI](https://github.com/Sabbat-cloud/sabbat-tools/actions/workflows/ci.yml/badge.svg)](https://github.com/Sabbat-cloud/sabbat-tools/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/sabbat-tools.svg)](https://pypi.org/project/sabbat-tools/) <!-- publish to PyPI to activate -->
+![Python Versions](https://img.shields.io/pypi/pyversions/sabbat-tools.svg)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](#license)
 
------
+**sabbat-tools** is a collection of production-ready command-line utilities for sysadmins, SREs, and security engineers.
 
-## 📑 Table of Contents / Índice
+- ✅ Bilingual UX (auto/en/es) where applicable  
+- ✅ Safe-by-default & automation-friendly (clean JSON modes)  
+- ✅ Thoughtful hardening: input limits, ReDoS-safe regex paths, safe output confinement
 
-  * [🚀 Installation / Instalación](https://www.google.com/search?q=%23-installation--instalaci%C3%B3n)
-  * [🧱 Requirements / Requisitos](https://www.google.com/search?q=%23-requirements--requisitos)
-  * [🧭 Commands / Comandos](https://www.google.com/search?q=%23-commands--comandos)
-      * [📊 sabbat-loganalyce — Advanced Log Analyzer](https://www.google.com/search?q=%23-sabbat-loganalyce--advanced-log-analyzer)
-      * [🕵️ sabbat-fileinspect — File Inspector](https://www.google.com/search?q=%23-sabbat-fileinspect--file-inspector)
-  * [✅ Best Practices / Buenas Prácticas](https://www.google.com/search?q=%23-best-practices--buenas-pr%C3%A1cticas)
-  * [🧪 Quick Tests / Pruebas Rápidas](https://www.google.com/search?q=%23-quick-tests--pruebas-r%C3%A1pidas)
-  * [🛠️ Contributing / Contribuir](https://www.google.com/search?q=%23%EF%B8%8F-contributing--contribuir)
-  * [📜 License / Licencia](https://www.google.com/search?q=%23-license--licencia)
+> **Español**: ¿Prefieres documentación en español? Lee [README-ES.md](./README-ES.md).
 
------
+---
 
-## 🚀 Installation / Instalación
+## 📚 Table of Contents
+
+- [Installation](#installation)
+- [Requirements & Extras](#requirements--extras)
+- [Commands](#commands)
+  - [📊 sabbat-loganalyce — Advanced Log Analyzer](#-sabbat-loganalyce--advanced-log-analyzer)
+  - [🕵️ sabbat-fileinspect — File Inspector](#-sabbat-fileinspect--file-inspector)
+- [Best Practices](#best-practices)
+- [JSON & Exit Codes](#json--exit-codes)
+- [Troubleshooting](#troubleshooting)
+- [Development](#development)
+- [Contributing](#contributing)
+- [License](#license)
+
+---
+
+## Installation
 
 ```bash
-# EN: Clone the repository
-# ES: Clona el repositorio
 git clone https://github.com/Sabbat-cloud/sabbat-tools
 cd sabbat-tools
 
-# EN: Editable install (recommended for development)
-# ES: Instalación editable (recomendada para desarrollo)
-pip install -e .
+# Base install (adds CLIs to PATH)
+pip install .
 
-# EN: Optional extras for extended functionality
-# ES: Extras opcionales para funcionalidad extendida
+# Recommended for full features:
 pip install -e ".[geoip,images,detect,hardened]"
-```
+````
 
-**EN:** After installation, the `sabbat-loganalyce` and `sabbat-fileinspect` commands will be available in your PATH.  
-**ES:** Tras la instalación, los comandos `sabbat-loganalyce` y `sabbat-fileinspect` estarán disponibles en tu PATH.
+> After install, you’ll have the `sabbat-loganalyce` and `sabbat-fileinspect` commands on PATH.
 
------
+---
 
-## 🧱 Requirements / Requisitos
+## Requirements & Extras
 
-  * **EN:** Python 3.8+.  
-    **ES:** Python 3.8+.
-  * **EN:** Optional dependencies for full functionality:
-      * `geoip2`: For IP geolocation in `loganalyce`.
-      * `Pillow`: For image analysis in `fileinspect`.
-      * `python-magic` & `chardet`: For robust MIME type and encoding detection.
-      * `regex`: For the hardened regular expression engine to mitigate ReDoS in `loganalyce`.
-  * **ES:** Dependencias opcionales para una funcionalidad completa:
-      * `geoip2`: Para geolocalización de IPs en `loganalyce`.
-      * `Pillow`: Para el análisis de imágenes en `fileinspect`.
-      * `python-magic` y `chardet`: Para una detección robusta de tipos MIME y codificación.
-      * `regex`: Para el motor de expresiones regulares endurecido que mitiga ReDoS en `loganalyce`.
+* **Python** ≥ 3.8
+* Optional extras:
 
------
+  * `hardened`: `regex` (and optionally `re2` if available) for ReDoS-resistant scanning
+  * `geoip`: `geoip2` + **MaxMind GeoLite2-Country.mmdb** (place in `/var/lib/GeoIP/` or pass `--geoip-db`)
+  * `detect`: `chardet` and `python-magic`/`file(1)` for robust MIME detection in `sabbat-fileinspect`
+  * `images`: `Pillow` to safely parse image metadata
 
-## 🧭 Commands / Comandos
+> If `re2` wheels aren’t available on your platform, it will be skipped; `regex` alone already hardens most paths.
+
+---
+
+## Commands
 
 ### 📊 sabbat-loganalyce — Advanced Log Analyzer
 
-**EN:** A production-ready log analyzer that reads plain or `.gz` files, supports `stdin`, and outputs rich statistics and security signals in multiple formats.  
-**ES:** Un analizador de logs listo para producción que lee ficheros estándar o `.gz`, soporta `stdin` y muestra estadísticas detalladas y alertas de seguridad en múltiples formatos.
+> *“Your logs have a story to tell. sabbat-loganalyce deciphers it for you.”*
 
-#### ✨ Highlights / Características Destacadas
+Reads plain or `.gz` logs, supports `stdin`, and outputs rich statistics, security signals, and JSON.
 
-  * **EN:**
-      * **Security-First**: Confines output to the current directory by default (`--unsafe-output` to override), sanitizes ANSI escape codes, and offers a hardened regex engine (`--hardened-regex`) to reduce ReDoS risk.
-      * **High Performance**: Utilizes multithreading for statistics generation (`--threads`) and a bounded futures queue for stable memory usage, even with large files.
-      * **Flexible Output**: Choose between a human-readable column view (default), a detailed list view (`--list-view`), or a comprehensive JSON format (`--json`) perfect for automation.
-      * **Early Warning System**: A fast pre-scan warns you if a log file is very large before full analysis begins, using the `--large-threshold` parameter.
-  * **ES:**
-      * **Seguridad Primero**: Confinamiento de la salida al directorio actual por defecto (`--unsafe-output` para anular), sanitización de códigos de escape ANSI y un motor de regex endurecido (`--hardened-regex`) para mitigar riesgos de ReDoS.
-      * **Alto Rendimiento**: Usa multihilo para generar estadísticas (`--threads`) y una cola de futuros acotada para un uso de memoria estable, incluso con ficheros grandes.
-      * **Salida Flexible**: Elige entre una vista de columnas fácil de leer (por defecto), una vista de lista detallada (`--list-view`), o un formato JSON completo (`--json`) ideal para la automatización.
-      * **Sistema de Alerta Temprana**: Un pre-escaneo rápido te avisa si un fichero de log es muy grande antes de comenzar el análisis completo, a través del parámetro `--large-threshold`.
+**Language**
 
-#### 📦 Examples / Ejemplos
+* Auto: `--lang auto` (default)
+* Force: `--lang {en|es}`
+
+**Highlights**
+
+* **Security**: safe output confinement (`--output` confined to CWD unless `--unsafe-output`), ANSI sanitization, ReDoS mitigation (`--hardened-regex` if `regex` installed)
+* **Performance**: multithreaded stats (`--threads`, `--batch-size`), bounded futures pipeline
+* **UX**: columns or list views, configurable tops, enriched JSON
+* **Early large-log warning**: fast pre-scan before full analysis (`--large-threshold`)
+
+**Quick Examples**
 
 ```bash
-# EN: Full analysis with the default column view
-# ES: Análisis completo con la vista de columnas por defecto
+# Full analysis (columns)
 sabbat-loganalyce access.log
 
-# EN: Analyze a log file using the list view
-# ES: Analizar un fichero de log usando la vista de lista
+# List view
 sabbat-loganalyce access.log --list-view
 
-# EN: Search for the first 50 lines matching a pattern (ordered, single-thread)
-# ES: Buscar las primeras 50 líneas que coincidan con un patrón (ordenado, monohilo)
+# Pattern search (first 50, ordered)
 sabbat-loganalyce error.log -p "Timeout|Exception" -c 50
 
-# EN: Get detailed statistics in JSON format
-# ES: Obtener estadísticas detalladas en formato JSON
+# JSON output
 sabbat-loganalyce app.log --json
 
-# EN: Filter logs within a specific UTC time range
-# ES: Filtrar logs en un rango de tiempo UTC específico
-sabbat-loganalyce access.log --since "2024-01-01" --until "2024-01-31 23:59:59"
+# Save JSON (confined to CWD unless --unsafe-output)
+sabbat-loganalyce app.log --json --output reports/result.json
 
-# EN: Analyze compressed logs from stdin
-# ES: Analizar logs comprimidos desde stdin
+# Time filter (UTC)
+sabbat-loganalyce access.log --since 2024-01-01 --until "2024-01-31 23:59:59"
+
+# Pipe .gz via stdin
 zcat access.log.gz | sabbat-loganalyce - --json
 ```
 
-#### ⚙️ Key Options / Opciones Clave
+**Core Options**
 
-| Option / Opción | Description (EN) | Descripción (ES) |
-|---|---|---|
-| `file` or `-` | Log file to analyze, or `-` for stdin. | Fichero de log a analizar, o `-` para stdin. |
-| `--lang {auto,en,es}` | Sets the interface language. | Establece el idioma de la interfaz. |
-| `-p, --pattern REGEX` | Searches for a specific regex pattern. | Busca un patrón (regex) específico. |
-| `--json` | Outputs results in JSON format. | Muestra la salida en formato JSON. |
-| `--output PATH` | Saves the results to a file (safely). | Guarda los resultados en un fichero (de forma segura). |
-| `--since/--until` | Filters logs by a UTC date/time range. | Filtra los logs por un rango de fecha/hora UTC. |
-| `--threads N` | Number of worker threads for analysis. | Número de hilos de trabajo para el análisis. |
-| `--hardened-regex` | Uses the hardened regex engine. | Utiliza el motor de regex endurecido. |
+* Input: `file | -` (stdin), `--encoding`, `--max-line-chars`, `--max-bytes`, `--deny-stdin`
+* Views: `--list-view`, `--top-urls N`, `--top-uas N`, `--top-ips N`
+* Security: `--hardened-regex`, `--unsafe-output`, `--force`, `--no-sanitize-ansi`
+* Time: `--since`, `--until` (UTC)
+* GeoIP: `--geoip-db PATH`
+* Perf: `--threads N`, `--batch-size N`, **pre-scan** `--large-threshold N`
+* Pattern search: `-p REGEX`, `-c N` (ordered, single-thread)
 
------
+---
 
 ### 🕵️ sabbat-fileinspect — File Inspector
 
-**EN:** A security-focused and portable file inspector that provides detailed metadata, security alerts, and integrity checks.  
-**ES:** Un inspector de ficheros portátil y centrado en la seguridad que proporciona metadatos detallados, alertas de seguridad y comprobaciones de integridad.
+Security-focused, portable file inspector. It understands text, images, and common binary types.
 
-#### ✨ Features / Características
+**Language**
 
-  * **EN:**
-      * **Robust MIME Detection**: Uses a smart chain of detection: `python-magic` -\> `file(1)` command (with timeout) -\> `mimetypes` fallback.
-      * **Advanced Secret Scanning**: Detects common patterns (passwords, API keys, private keys) and high-entropy Base64/Hex strings that might be secrets. Scan limits are configurable (`--max-secret-bytes`, `--max-secret-lines`).
-      * **Configurable Hashes**: Computes file hashes using multiple algorithms (`--hash sha256,sha1,md5`). Hashing can be disabled with `--no-hash`.
-      * **Context-Aware Details**: Provides specific metadata for images (via Pillow), executables (ELF/PE/Mach-O headers), and text files (encoding).
-  * **ES:**
-      * **Detección MIME Robusta**: Utiliza una cadena de detección inteligente: `python-magic` -\> comando `file(1)` (con timeout) -\> `mimetypes` como alternativa.
-      * **Escaneo de Secretos Avanzado**: Detecta patrones comunes (contraseñas, claves de API, claves privadas) y cadenas Base64/Hex de alta entropía que podrían ser secretos. Los límites del escaneo son configurables (`--max-secret-bytes`, `--max-secret-lines`).
-      * **Hashes Configurables**: Calcula hashes de ficheros usando múltiples algoritmos (`--hash sha256,sha1,md5`). El cálculo de hashes se puede desactivar con `--no-hash`.
-      * **Detalles Contextuales**: Proporciona metadatos específicos para imágenes (a través de Pillow), ejecutables (cabeceras ELF/PE/Mach-O) y ficheros de texto (codificación).
+* `--lang {auto,en,es}`
 
-#### 📦 Examples / Ejemplos
+**Highlights**
+
+* Robust MIME: `python-magic` → `file(1)` (with timeout) → `mimetypes`
+* Hashes: `--hash sha256,sha1,md5` (default `sha256`) or `--no-hash` (mmap when possible)
+* Secret scanning: common patterns + high-entropy (base64/hex), adjustable limits
+* Images: safe verification (`Pillow`) and metadata
+* Binaries: header detection (ELF/PE/Mach-O), optional `readelf` (with timeout)
+* Time: `--utc` (ISO 8601)
+* Respects `NO_COLOR`; clean JSON output
+
+**Quick Examples**
 
 ```bash
-# EN: Basic inspection of a file
-# ES: Inspección básica de un fichero
+# Basic inspection (auto language)
 sabbat-fileinspect /etc/passwd
 
-# EN: Inspect a file with Spanish output, UTC timestamps, and multiple hashes in JSON format
-# ES: Inspeccionar un fichero con salida en español, fechas en UTC y múltiples hashes en formato JSON
+# Force Spanish + UTC + multiple hashes + JSON
 sabbat-fileinspect --lang es --utc --hash sha256,sha1 --json /etc/hosts
 
-# EN: Inspect a symbolic link without following it and disable hashing
-# ES: Inspeccionar un enlace simbólico sin seguirlo y desactivar el cálculo de hashes
-sabbat-fileinspect --nofollow --no-hash /path/to/symlink
+# No hashes, do not follow symlinks
+sabbat-fileinspect --no-hash --nofollow /path/to/link
 
-# EN: Set custom limits for the secret scanning engine
-# ES: Establecer límites personalizados para el motor de escaneo de secretos
-sabbat-fileinspect --max-secret-bytes 262144 --max-secret-lines 300 config.env
+# Limit secrets scan
+sabbat-fileinspect --max-secret-bytes 262144 --max-secret-lines 300 app.env
 ```
 
------
+**Core Options**
 
-## ✅ Best Practices / Buenas Prácticas
+* Language & formatting: `--lang`, `--json`, `--utc`, NO_COLOR
+* Size: `-b/--bytes`, `-k/--kb`, `-m/--mb`, `-g/--gb`
+* Hashes: `--no-hash` or `--hash sha256,sha1,md5`
+* Symlinks: `--nofollow`
+* Secret scan limits: `--max-secret-bytes N`, `--max-secret-lines N`
 
-  * **EN:** For huge logs, use `--max-bytes` with `sabbat-loganalyce` to limit the amount of data processed and enable `--hardened-regex` for safer pattern matching.  
-    **ES:** Para logs muy grandes, usa `--max-bytes` con `sabbat-loganalyce` para limitar la cantidad de datos procesados y activa `--hardened-regex` para un análisis de patrones más seguro.
-  * **EN:** For accurate IP geolocation, install `geoip2` and download the free GeoLite2-Country database from MaxMind.  
-    **ES:** Para una geolocalización de IPs precisa, instala `geoip2` y descarga la base de datos gratuita GeoLite2-Country de MaxMind.
-  * **EN:** When automating, always use the `--json` flag for stable, machine-readable output.  
-    **ES:** Al automatizar, utiliza siempre la bandera `--json` para obtener una salida estable y legible por máquina.
+---
 
------
+## Best Practices
 
-## 🧪 Quick Tests / Pruebas Rápidas
+* Huge logs: use `--large-threshold` and/or `--max-bytes`.
+* ReDoS hardening: enable `--hardened-regex` (install `regex`).
+* GeoIP: download & configure GeoLite2-Country.mmdb and pass `--geoip-db` if needed.
+* Secrets: tune `--max-secret-bytes/lines` for large files.
+* CI: export `NO_COLOR=1` for consistent outputs.
 
-**EN:** Run these commands to quickly test the core functionalities of the tools.  
-**ES:** Ejecuta estos comandos para probar rápidamente las funcionalidades principales de las herramientas.
+---
+
+## JSON & Exit Codes
+
+**sabbat-loganalyce**
+
+* JSON includes: `schema_version`, `generated_at`, `lang`, `summary { file, total_lines, total_errors, total_warnings, period }`, `parameters_used`, `security_alerts`, `http_methods`, `http_status_codes`, `top_urls`, `top_user_agents`, `top_errors`, `top_ips`, `truncated_lines`, `bytes_read`.
+* Exit code:
+
+  * `0` success
+  * `1` usage or runtime error
+  * `2` **security alerts detected** (CI-friendly)
+
+**sabbat-fileinspect**
+
+* JSON includes stable keys for pipelines: file identity, realpath/symlink, MIME, sizes, permissions/inode, owner, dates, context details, security alerts, hashes.
+* Exit code:
+
+  * `0` success
+  * `1` error
+
+---
+
+## Troubleshooting
+
+* **`re2` not available**: Safe to ignore; `regex` covers hardened engine. Use `pip install -e ".[hardened]"`—it will skip `re2` if unsupported.
+* **GeoIP DB missing**: You’ll see a warning; countries will be “GeoIP not available”. Install `geoip2` and place GeoLite2 in `/var/lib/GeoIP/` or use `--geoip-db`.
+* **Windows MIME**: Prefer `python-magic`; `file(1)` may be unavailable.
+* **Colors in CI**: `NO_COLOR=1`.
+
+---
+
+## Development
 
 ```bash
-# Test sabbat-loganalyce with multithreading and safety limits
-sabbat-loganalyce access.log \
-  --threads 4 --hardened-regex \
-  --max-line-chars 8192 --max-bytes 500000000 \
-  --top-urls 10 --top-ips 25
+# Install local (editable) with common extras
+pip install -e ".[detect,images,hardened]"
 
-# Test sabbat-fileinspect with JSON output and multi-hash
-sabbat-fileinspect --utc \
-  --hash sha256,sha1 \
-  --json ./pyproject.toml
+# Run tests (verbose)
+pytest -vv
+
+# Lint (optional)
+pip install ruff
+ruff check .
 ```
 
------
+**Project layout**
 
-## 🛠️ Contributing / Contribuir
+```
+sabbat_tools/
+  ├─ loganalyce.py     # sabbat-loganalyce
+  └─ fileinspect.py    # sabbat-fileinspect
+tests/
+  ├─ conftest.py
+  ├─ test_fileinspect.py
+  └─ test_loganalyce.py
+```
 
-**EN:** Issues and Pull Requests are welcome. Please maintain the project's style: safe-by-default, clear UX, and robust testing.  
-**ES:** Los issues y Pull Requests son bienvenidos. Por favor, mantén el estilo del proyecto: seguro por defecto, una UX clara y pruebas robustas.
+---
 
------
+## Contributing
 
-## 📜 License / Licencia
+PRs and issues welcome. Please keep the philosophy:
 
-MIT License.
+* Safe-by-default, robust tests, clear UX.
+* New commands should come with tests and a README section.
 
-Repo: [https://github.com/Sabbat-cloud/sabbat-tools](https://github.com/Sabbat-cloud/sabbat-tools)
+---
+
+## License
+
+MIT © Óscar Giménez Blasco
+
+````
