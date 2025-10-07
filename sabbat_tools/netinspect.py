@@ -694,6 +694,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     return exit_code
 
 
+def cli_main():
+    # Compat: entry points antiguos apuntan a cli_main
+    return main()
+
 if __name__ == "__main__":
     raise SystemExit(main())
 

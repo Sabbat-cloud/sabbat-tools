@@ -1239,6 +1239,39 @@ def main(argv: Optional[List[str]] = None) -> int:
         t = I18N[lang]
         print(f"{t['err']}: {e}", file=sys.stderr)
         return 1
+def main(argv: Optional[List[str]] = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    parser = build_parser()
+    args = parser.parse_args(argv)
+
+    # default to --all when nothing specified
+    if not (args.check_ssh or args.check_perms or args.check_users or args.check_cron or args.all):
+        args.all = True
+
+    try:
+        findings, report = run_checks(args)
+        lang = detect_lang(args.lang)
+        if args.json:
+            print(json.dumps(report, ensure_ascii=False, indent=2))
+        elif getattr(args, 'jsonl', False) or getattr(args, 'raw', False):
+            print_raw(findings, lang, jsonl=getattr(args, 'jsonl', False))
+        else:
+            print_human(findings, lang, group=getattr(args, 'group', True), group_show=getattr(args, 'group_show', 5))
+        # exit code policy (definir y devolver dentro del try)
+        exit_code = 0 if not any(f.risk in {"HIGH", "MEDIUM"} for f in findings) else 2
+        return exit_code
+    except KeyboardInterrupt:
+        return 1
+    except Exception as e:
+        lang = detect_lang(args.lang)
+        t = I18N[lang]
+        print(f"{t['err']}: {e}", file=sys.stderr)
+        return 1
+
+def cli_main():
+    # compat con entry points antiguos
+    return main()
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

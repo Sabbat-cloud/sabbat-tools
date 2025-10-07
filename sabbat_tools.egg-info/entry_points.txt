@@ -1,3 +1,5 @@
 [console_scripts]
 sabbat-fileinspect = sabbat_tools.fileinspect:cli_main
 sabbat-loganalyce = sabbat_tools.loganalyce:cli_main
+sabbat-netinspect = sabbat_tools.netinspect:cli_main
+sabbat-syscheck = sabbat_tools.syscheck:cli_main

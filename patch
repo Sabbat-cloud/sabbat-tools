@@ -1,0 +1,45 @@
+*** a/pyproject.toml
+--- b/pyproject.toml
+@@
+ [build-system]
+ requires = ["setuptools>=68", "wheel"]
+ build-backend = "setuptools.build_meta"
+
+ [project]
+ name = "sabbat-tools"
+-version = "0.0.0"
++version = "0.0.0"
+ description = "System & Security CLI Toolbox"
+ readme = "README.md"
+ requires-python = ">=3.8"
+ authors = [{ name = "Óscar Giménez Blasco" }]
+ license = { text = "MIT" }
+ classifiers = [
+   "Programming Language :: Python :: 3",
+   "License :: OSI Approved :: MIT License",
+ ]
+ dependencies = [
+   # runtime deps mínimos (ajusta según tu proyecto)
+   "psutil>=5.9.0",
+ ]
+
+ [project.optional-dependencies]
+ detect = ["chardet>=5", "python-magic>=0.4.27"]
+ images = ["Pillow>=10"]
+ geoip = ["geoip2>=4.7"]
+ hardened = ["regex>=2023.12.25"]
+
+ [project.urls]
+ Homepage = "https://github.com/Sabbat-cloud/sabbat-tools"
+
+ [project.scripts]
+-# ¡OJO! No usar dos ":"; debe ser "module:funcion"
+-sabbat-syscheck = "sabbat_tools.syscheck:main:cli_main"
++sabbat-syscheck = "sabbat_tools.syscheck:main"
++sabbat-loganalyce = "sabbat_tools.loganalyce:main"
++sabbat-fileinspect = "sabbat_tools.fileinspect:main"
++sabbat-netinspect = "sabbat_tools.netinspect:main"
+
++[tool.setuptools]
++packages = { find = { where = ["."], include = ["sabbat_tools*"] } }
+
