@@ -30,6 +30,7 @@ hardened = ["regex>=2024.5.15"]
 [project.scripts]
 sabbat-loganalyce = "sabbat_tools.loganalyce:cli_main"
 sabbat-fileinspect = "sabbat_tools.fileinspect:cli_main"
+sabbat-syscheck = "sabbat_tools.syscheck:main:cli_main"
 
 [project.urls]
 Homepage = "https://github.com/Sabbat-cloud/sabbat-tools"
