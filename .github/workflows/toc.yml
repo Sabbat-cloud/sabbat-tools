@@ -8,6 +8,10 @@ on:
       - 'README-ES.md'
   workflow_dispatch:
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   generate-toc:
     runs-on: ubuntu-latest
@@ -25,4 +29,6 @@ jobs:
           MAX_HEADER_LEVEL: 4
           OPENING_COMMENT: '<!-- toc -->'
           CLOSING_COMMENT: '<!-- tocstop -->'
+          CREATE_PR: false
+          COMMIT_MESSAGE: 'docs: update TOC [skip ci]'
 
