@@ -228,6 +228,8 @@ sabbat-syscheck cronaudit --only timers
 
 Portable (psutil-based) inspector for **live** network state: active connections, listening ports, process correlation, optional GeoIP, local threat intel (CSV), port whitelist checks, snapshots & diffs.
 
+See [Troubleshooting](docs/NETINSPECT-TROUBLESHOOTING.md)
+
 **Key features**
 - TCP/UDP (IPv4/IPv6) + PID→Process correlation (`psutil`)
 - Filters: `--proto`, `--state`, `--pid`, `--user`, `--lport`, `--rport`, `--include-unix`
@@ -275,11 +277,6 @@ ip,source,confidence
 
 * `0` = no suspicious findings
 * `2` = suspicious flags present (e.g. `ti_blacklisted`, `not_in_whitelist`, `exposed_high_port`)
-
-````
-
----
-
 
 ````
 

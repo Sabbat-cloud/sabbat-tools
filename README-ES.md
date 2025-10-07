@@ -222,6 +222,8 @@ sabbat-syscheck cronaudit --only timers
 
 Inspector **en vivo** del estado de red: conexiones activas, puertos en escucha, correlación con procesos, GeoIP opcional, inteligencia de amenazas local (CSV), comprobación de whitelist de puertos, snapshots y diffs.
 
+Ver [Problemas comunes](docs/NETINSPECT-TROUBLESHOOTING-ES.md).
+
 **Características Clave**
 - TCP/UDP (IPv4/IPv6) + correlación PID→Proceso (`psutil`)
 - Filtros: `--proto`, `--state`, `--pid`, `--user`, `--lport`, `--rport`, `--include-unix`
