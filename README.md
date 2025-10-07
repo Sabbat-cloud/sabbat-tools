@@ -253,7 +253,7 @@ sabbat-netinspect --check-threat-intel --ti-csv feeds/blacklist.csv \
 # Snapshot & diff
 sabbat-netinspect --snapshot --output snapshots/net_$(date +%F).json
 sabbat-netinspect --diff snapshots/net_2025-10-07.json --json
-````
+```
 
 **Whitelist format**
 
@@ -278,7 +278,7 @@ ip,source,confidence
 * `0` = no suspicious findings
 * `2` = suspicious flags present (e.g. `ti_blacklisted`, `not_in_whitelist`, `exposed_high_port`)
 
-````
+```
 
 ---
 ## Best Practices
