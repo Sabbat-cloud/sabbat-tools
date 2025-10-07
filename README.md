@@ -226,17 +226,6 @@ sabbat-syscheck cronaudit --only timers
 
 ---
 
-¡Fácil! Te dejo dos formas:
-
----
-
-# Opción A — Pega estas secciones (EN y ES) en tus README y regenera el TOC
-
-## 1) Añade en `README.md` (inglés)
-
-Busca el bloque **Commands** y, debajo de `sabbat-syscheck`, pega este nuevo subapartado:
-
-````markdown
 ### 🌐 sabbat-netinspect — Network & Connections Inspector
 
 Portable (psutil-based) inspector for **live** network state: active connections, listening ports, process correlation, optional GeoIP, local threat intel (CSV), port whitelist checks, snapshots & diffs.
