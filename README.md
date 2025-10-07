@@ -41,6 +41,13 @@
 - [Only suspicious commands (danger patterns or your regex)](#only-suspicious-commands-danger-patterns-or-your-regex)
 - [Privilege focus (root/excess/mismatch)](#privilege-focus-rootexcessmismatch)
 - [Only systemd timers](#only-systemd-timers)
+- [Opción A — Pega estas secciones (EN y ES) en tus README y regenera el TOC](#opcin-a-pega-estas-secciones-en-y-es-en-tus-readme-y-regenera-el-toc)
+  - [1) Añade en `README.md` (inglés)](#1-aade-en-readmemd-ingls)
+    - [🌐 sabbat-netinspect — Network & Connections Inspector](#sabbat-netinspect-network-connections-inspector)
+- [JSON with GeoIP and connection cap](#json-with-geoip-and-connection-cap)
+- [TI (local CSV) + whitelist check for listening ports](#ti-local-csv-whitelist-check-for-listening-ports)
+- [Snapshot & diff](#snapshot-diff)
+- [comments allowed](#comments-allowed)
   - [Best Practices](#best-practices)
   - [JSON & Exit Codes](#json-exit-codes)
   - [Troubleshooting](#troubleshooting)
@@ -219,6 +226,77 @@ sabbat-syscheck cronaudit --only timers
 
 ---
 
+¡Fácil! Te dejo dos formas:
+
+---
+
+# Opción A — Pega estas secciones (EN y ES) en tus README y regenera el TOC
+
+## 1) Añade en `README.md` (inglés)
+
+Busca el bloque **Commands** y, debajo de `sabbat-syscheck`, pega este nuevo subapartado:
+
+````markdown
+### 🌐 sabbat-netinspect — Network & Connections Inspector
+
+Portable (psutil-based) inspector for **live** network state: active connections, listening ports, process correlation, optional GeoIP, local threat intel (CSV), port whitelist checks, snapshots & diffs.
+
+**Key features**
+- TCP/UDP (IPv4/IPv6) + PID→Process correlation (`psutil`)
+- Filters: `--proto`, `--state`, `--pid`, `--user`, `--lport`, `--rport`, `--include-unix`
+- GeoIP (optional): `--geoip-db /var/lib/GeoIP/GeoLite2-Country.mmdb` (requires `geoip2`)
+- Local Threat Intel: `--check-threat-intel --ti-csv feeds/blacklist.csv` (no online calls)
+- Whitelist of listening ports: `--check-ports --whitelist /etc/allowed_ports.conf`
+- Reverse DNS opt-in: `--rdns`
+- Snapshots & diff: `--snapshot --output ...` / `--diff prev.json`
+- Outputs: human, `--raw` (TSV), `--json`, `--jsonl`
+- Privacy by default (`--sanitize`). Use `--unsafe-proc-cmdline` to include full cmdline.
+
+**Examples**
+```bash
+# JSON with GeoIP and connection cap
+sabbat-netinspect --json --geoip-db /var/lib/GeoIP/GeoLite2-Country.mmdb --max-conns 500
+
+# TI (local CSV) + whitelist check for listening ports
+sabbat-netinspect --check-threat-intel --ti-csv feeds/blacklist.csv \
+                  --check-ports --whitelist /etc/allowed_ports.conf
+
+# Snapshot & diff
+sabbat-netinspect --snapshot --output snapshots/net_$(date +%F).json
+sabbat-netinspect --diff snapshots/net_2025-10-07.json --json
+````
+
+**Whitelist format**
+
+```
+# comments allowed
+tcp/22
+tcp/443
+udp/53
+tcp/*        # allow all tcp (dev only)
+```
+
+**Threat intel CSV (minimal)**
+
+```csv
+ip,source,confidence
+203.0.113.50,local-blacklist,95
+198.51.100.23,dfir-feed,80
+```
+
+**Exit codes**
+
+* `0` = no suspicious findings
+* `2` = suspicious flags present (e.g. `ti_blacklisted`, `not_in_whitelist`, `exposed_high_port`)
+
+````
+
+---
+
+
+````
+
+---
 ## Best Practices
 
 * ReDoS hardening: use `--hardened-regex` (install `regex`).

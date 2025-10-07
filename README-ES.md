@@ -39,6 +39,11 @@
 - [Solo sospechosos (patrones peligrosos o tu regex)](#solo-sospechosos-patrones-peligrosos-o-tu-regex)
 - [Foco en privilegios (root/excesos/mismatch)](#foco-en-privilegios-rootexcesosmismatch)
 - [Solo timers de systemd](#solo-timers-de-systemd)
+    - [🌐 sabbat-netinspect — Inspector de Red y Conexiones](#sabbat-netinspect-inspector-de-red-y-conexiones)
+- [JSON con GeoIP y límite de conexiones](#json-con-geoip-y-lmite-de-conexiones)
+- [TI local + whitelist de puertos](#ti-local-whitelist-de-puertos)
+- [Snapshot y diff](#snapshot-y-diff)
+- [comentarios](#comentarios)
   - [Buenas Prácticas](#buenas-prcticas)
   - [JSON y Códigos de Salida](#json-y-cdigos-de-salida)
   - [Solución de Problemas](#solucin-de-problemas)
@@ -211,6 +216,61 @@ sabbat-syscheck cronaudit --only timers
 }
 ```
 
+---
+
+### 🌐 sabbat-netinspect — Inspector de Red y Conexiones
+
+Inspector **en vivo** del estado de red: conexiones activas, puertos en escucha, correlación con procesos, GeoIP opcional, inteligencia de amenazas local (CSV), comprobación de whitelist de puertos, snapshots y diffs.
+
+**Características Clave**
+- TCP/UDP (IPv4/IPv6) + correlación PID→Proceso (`psutil`)
+- Filtros: `--proto`, `--state`, `--pid`, `--user`, `--lport`, `--rport`, `--include-unix`
+- GeoIP (opcional): `--geoip-db /var/lib/GeoIP/GeoLite2-Country.mmdb` (requiere `geoip2`)
+- Threat Intel local: `--check-threat-intel --ti-csv feeds/blacklist.csv` (sin llamadas online)
+- Whitelist de puertos en escucha: `--check-ports --whitelist /etc/allowed_ports.conf`
+- Reverse DNS opcional: `--rdns`
+- Snapshots y diffs: `--snapshot --output ...` / `--diff prev.json`
+- Salidas: humana, `--raw` (TSV), `--json`, `--jsonl`
+- Privacidad por defecto (`--sanitize`). Usa `--unsafe-proc-cmdline` para incluir `cmdline` completo.
+
+**Ejemplos**
+```bash
+# JSON con GeoIP y límite de conexiones
+sabbat-netinspect --json --geoip-db /var/lib/GeoIP/GeoLite2-Country.mmdb --max-conns 500
+
+# TI local + whitelist de puertos
+sabbat-netinspect --check-threat-intel --ti-csv feeds/blacklist.csv \
+                  --check-ports --whitelist /etc/allowed_ports.conf
+
+# Snapshot y diff
+sabbat-netinspect --snapshot --output snapshots/net_$(date +%F).json
+sabbat-netinspect --diff snapshots/net_2025-10-07.json --json
+````
+
+**Formato whitelist**
+
+```
+# comentarios
+tcp/22
+tcp/443
+udp/53
+tcp/*        # permitir todos los tcp (solo dev)
+```
+
+**CSV de Threat Intel (mínimo)**
+
+```csv
+ip,source,confidence
+203.0.113.50,local-blacklist,95
+198.51.100.23,dfir-feed,80
+```
+
+**Códigos de salida**
+
+* `0` = sin flags sospechosas
+* `2` = hay flags sospechosas (p.ej. `ti_blacklisted`, `not_in_whitelist`, `exposed_high_port`)
+
+````
 ---
 
 ## Buenas Prácticas
