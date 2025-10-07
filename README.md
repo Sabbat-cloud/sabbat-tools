@@ -41,8 +41,6 @@
 - [Only suspicious commands (danger patterns or your regex)](#only-suspicious-commands-danger-patterns-or-your-regex)
 - [Privilege focus (root/excess/mismatch)](#privilege-focus-rootexcessmismatch)
 - [Only systemd timers](#only-systemd-timers)
-- [Opción A — Pega estas secciones (EN y ES) en tus README y regenera el TOC](#opcin-a-pega-estas-secciones-en-y-es-en-tus-readme-y-regenera-el-toc)
-  - [1) Añade en `README.md` (inglés)](#1-aade-en-readmemd-ingls)
     - [🌐 sabbat-netinspect — Network & Connections Inspector](#sabbat-netinspect-network-connections-inspector)
 - [JSON with GeoIP and connection cap](#json-with-geoip-and-connection-cap)
 - [TI (local CSV) + whitelist check for listening ports](#ti-local-csv-whitelist-check-for-listening-ports)
