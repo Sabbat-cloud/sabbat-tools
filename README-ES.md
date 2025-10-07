@@ -84,6 +84,7 @@ pip install -e ".[geoip,images,detect,hardened]"
 ## Comandos
 
 ### 📊 sabbat-loganalyce — Analizador Avanzado de Logs
+[Manual rápido](docs/LOGANALYCE-ES.md) · [In English](docs/LOGANALYCE.md)
 
 Lee logs planos o `.gz`, soporta `stdin` y saca estadísticas, señales de seguridad y JSON.
 
@@ -102,6 +103,7 @@ sabbat-loganalyce app.log --json
 ---
 
 ### 🕵️ sabbat-fileinspect — Inspector de Ficheros
+[Manual rápido](docs/FILEINSPECT-ES.md) · [In English](docs/FILEINSPECT.md)
 
 Inspector portable con foco en seguridad. Entiende texto, imágenes y binarios comunes.
 
@@ -113,6 +115,7 @@ sabbat-fileinspect --lang es --utc --hash sha256,sha1 --json /etc/hosts
 ---
 
 ### 🔧 sabbat-syscheck — Auditor de Sistema (solo lectura)
+[Manual rápido](docs/SYSCHECK-ES.md) · [In English](docs/SYSCHECK.md)
 
 Auditor ligero, inspirado en Lynis. Revisa SSH, permisos de ficheros, usuarios y cron para detectar desconfiguraciones comunes. **Solo lectura**, apto para CI, bilingüe (EN/ES) y con salidas JSON/JSONL estables.
 
@@ -197,10 +200,11 @@ sabbat-syscheck cronaudit --only timers
 ---
 
 ### 🌐 sabbat-netinspect — Inspector de Red y Conexiones
+[Manual rápido](docs/NETINSPECT-ES.md) · [In English](docs/NETINSPECT.md)
+
+Ver [Troubleshooting](docs/NETINSPECT-TROUBLESHOOTING-ES.md)
 
 Inspector **en vivo** del estado de red: conexiones activas, puertos en escucha, correlación con procesos, GeoIP opcional, inteligencia de amenazas local (CSV), comprobación de whitelist de puertos, snapshots y diffs.
-
-Ver [Problemas comunes](docs/NETINSPECT-TROUBLESHOOTING-ES.md).
 
 **Características Clave**
 - TCP/UDP (IPv4/IPv6) + correlación PID→Proceso (`psutil`)

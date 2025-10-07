@@ -1,3 +1,4 @@
+??? from here until ???END lines may have been inserted/deleted
 # 🧰 sabbat-tools — System & Security CLI Toolbox
 [![Docs](https://img.shields.io/badge/Docs-English%20%7C%20Espa%C3%B1ol-blue)](README.md)
 [🇬🇧 English](README.md) · [🇪🇸 Español](README-ES.md)
@@ -86,6 +87,7 @@ pip install -e ".[geoip,images,detect,hardened]"
 ## Commands
 
 ### 📊 sabbat-loganalyce — Advanced Log Analyzer
+[Quick manual](docs/LOGANALYCE.md) · [En español](docs/LOGANALYCE-ES.md)
 
 Reads plain or `.gz` logs, supports `stdin`, and outputs rich statistics, security signals, and JSON.
 
@@ -108,6 +110,7 @@ sabbat-loganalyce app.log --json
 ---
 
 ### 🕵️ sabbat-fileinspect — File Inspector
+[Quick manual](docs/FILEINSPECT.md) · [En español](docs/FILEINSPECT-ES.md)
 
 Security-focused, portable file inspector. It understands text, images, and common binary types.
 
@@ -119,6 +122,7 @@ sabbat-fileinspect --lang es --utc --hash sha256,sha1 --json /etc/hosts
 ---
 
 ### 🔧 sabbat-syscheck — System Auditor (read-only)
+[Quick manual](docs/SYSCHECK.md) · [En español](docs/SYSCHECK-ES.md)
 
 Lightweight, non-intrusive auditor inspired by tools like Lynis. It scans SSH, file permissions, users, and cron to spot common misconfigurations. **Read-only**, CI-friendly, bilingual (EN/ES), and with stable JSON/JSONL output.
 
@@ -203,10 +207,11 @@ sabbat-syscheck cronaudit --only timers
 ---
 
 ### 🌐 sabbat-netinspect — Network & Connections Inspector
-
-Portable (psutil-based) inspector for **live** network state: active connections, listening ports, process correlation, optional GeoIP, local threat intel (CSV), port whitelist checks, snapshots & diffs.
+[Quick manual](docs/NETINSPECT.md) · [En español](docs/NETINSPECT-ES.md)
 
 See [Troubleshooting](docs/NETINSPECT-TROUBLESHOOTING.md)
+
+Portable (psutil-based) inspector for **live** network state: active connections, listening ports, process correlation, optional GeoIP, local threat intel (CSV), port whitelist checks, snapshots & diffs.
 
 **Key features**
 - TCP/UDP (IPv4/IPv6) + PID→Process correlation (`psutil`)
