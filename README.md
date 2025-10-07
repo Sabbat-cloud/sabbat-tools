@@ -17,46 +17,24 @@
 > **Español**: ¿Prefieres documentación en español? Lee [README-ES.md](./README-ES.md).
 
 ---
-<!-- toc -->
-- [🧰 sabbat-tools — System & Security CLI Toolbox](#sabbat-tools-system-security-cli-toolbox)
-  - [📚 Table of Contents](#table-of-contents)
-  - [Installation](#installation)
-- [Base install (adds CLIs to PATH)](#base-install-adds-clis-to-path)
-- [Recommended for full features:](#recommended-for-full-features)
-  - [Requirements & Extras](#requirements-extras)
-  - [Commands](#commands)
-    - [📊 sabbat-loganalyce — Advanced Log Analyzer](#sabbat-loganalyce-advanced-log-analyzer)
-- [Full analysis (columns)](#full-analysis-columns)
-- [Pattern search (first 50, ordered)](#pattern-search-first-50-ordered)
-- [JSON output](#json-output)
-    - [🕵️ sabbat-fileinspect — File Inspector](#sabbat-fileinspect-file-inspector)
-- [Force Spanish + UTC + multiple hashes + JSON](#force-spanish-utc-multiple-hashes-json)
-    - [🔧 sabbat-syscheck — System Auditor (read-only)](#sabbat-syscheck-system-auditor-read-only)
-- [Run all modules (default)](#run-all-modules-default)
-- [JSON for dashboards/ingestion](#json-for-dashboardsingestion)
-- [Raw TSV (easy grepping)](#raw-tsv-easy-grepping)
-- [Limit permissions scan](#limit-permissions-scan)
-      - [cronaudit subcommand (Cron + systemd timers)](#cronaudit-subcommand-cron-systemd-timers)
-- [Full audit + JSON saved](#full-audit-json-saved)
-- [Only suspicious commands (danger patterns or your regex)](#only-suspicious-commands-danger-patterns-or-your-regex)
-- [Privilege focus (root/excess/mismatch)](#privilege-focus-rootexcessmismatch)
-- [Only systemd timers](#only-systemd-timers)
-    - [🌐 sabbat-netinspect — Network & Connections Inspector](#sabbat-netinspect-network-connections-inspector)
-- [JSON with GeoIP and connection cap](#json-with-geoip-and-connection-cap)
-- [TI (local CSV) + whitelist check for listening ports](#ti-local-csv-whitelist-check-for-listening-ports)
-- [Snapshot & diff](#snapshot-diff)
-- [comments allowed](#comments-allowed)
-  - [Best Practices](#best-practices)
-  - [JSON & Exit Codes](#json-exit-codes)
-  - [Troubleshooting](#troubleshooting)
-  - [Development](#development)
-- [Install local (editable) with common extras](#install-local-editable-with-common-extras)
-- [Run tests (verbose)](#run-tests-verbose)
-- [Lint (ruff)](#lint-ruff)
-  - [Contributing](#contributing)
-  - [License](#license)
-    - [Project Footer](#project-footer)
-<!-- tocstop -->
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**
+
+- [📚 Table of Contents](#-table-of-contents)
+- [Installation](#installation)
+- [Requirements & Extras](#requirements--extras)
+- [Commands](#commands)
+  - [📊 sabbat-loganalyce — Advanced Log Analyzer](#-sabbat-loganalyce--advanced-log-analyzer)
+  - [🕵️ sabbat-fileinspect — File Inspector](#-sabbat-fileinspect--file-inspector)
+  - [🔧 sabbat-syscheck — System Auditor (read-only)](#-sabbat-syscheck--system-auditor-read-only)
+    - [cronaudit subcommand (Cron + systemd timers)](#cronaudit-subcommand-cron--systemd-timers)
+  - [🌐 sabbat-netinspect — Network & Connections Inspector](#-sabbat-netinspect--network--connections-inspector)
+- [Contributing](#contributing)
+- [License](#license)
+  - [Project Footer](#project-footer)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 
 ## 📚 Table of Contents

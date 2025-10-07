@@ -15,46 +15,24 @@
 - ✅ Endurecido: límites de entrada, rutas regex resistentes a ReDoS, confinamiento seguro de salidas
 
 ---
-<!-- toc -->
-- [🧰 sabbat-tools — Caja de Herramientas CLI de Sistema y Seguridad](#sabbat-tools-caja-de-herramientas-cli-de-sistema-y-seguridad)
-  - [📚 Índice](#ndice)
-  - [Instalación](#instalacin)
-- [Instalación base (añade CLIs al PATH)](#instalacin-base-aade-clis-al-path)
-- [Recomendado (todas las características):](#recomendado-todas-las-caractersticas)
-  - [Requisitos y Extras](#requisitos-y-extras)
-  - [Comandos](#comandos)
-    - [📊 sabbat-loganalyce — Analizador Avanzado de Logs](#sabbat-loganalyce-analizador-avanzado-de-logs)
-- [Análisis completo (columnas)](#anlisis-completo-columnas)
-- [Búsqueda por patrón (primeros 50, ordenado)](#bsqueda-por-patrn-primeros-50-ordenado)
-- [Salida JSON](#salida-json)
-    - [🕵️ sabbat-fileinspect — Inspector de Ficheros](#sabbat-fileinspect-inspector-de-ficheros)
-- [Forzar español + UTC + varios hashes + JSON](#forzar-espaol-utc-varios-hashes-json)
-    - [🔧 sabbat-syscheck — Auditor de Sistema (solo lectura)](#sabbat-syscheck-auditor-de-sistema-solo-lectura)
-- [Ejecutar todo (por defecto)](#ejecutar-todo-por-defecto)
-- [JSON para dashboards/ingestión](#json-para-dashboardsingestin)
-- [TSV sin agrupar (greppable)](#tsv-sin-agrupar-greppable)
-- [Limitar escaneo de permisos](#limitar-escaneo-de-permisos)
-      - [Subcomando cronaudit (Cron + systemd timers)](#subcomando-cronaudit-cron-systemd-timers)
-- [Auditoría completa + JSON a fichero](#auditora-completa-json-a-fichero)
-- [Solo sospechosos (patrones peligrosos o tu regex)](#solo-sospechosos-patrones-peligrosos-o-tu-regex)
-- [Foco en privilegios (root/excesos/mismatch)](#foco-en-privilegios-rootexcesosmismatch)
-- [Solo timers de systemd](#solo-timers-de-systemd)
-    - [🌐 sabbat-netinspect — Inspector de Red y Conexiones](#sabbat-netinspect-inspector-de-red-y-conexiones)
-- [JSON con GeoIP y límite de conexiones](#json-con-geoip-y-lmite-de-conexiones)
-- [TI local + whitelist de puertos](#ti-local-whitelist-de-puertos)
-- [Snapshot y diff](#snapshot-y-diff)
-- [comentarios](#comentarios)
-  - [Buenas Prácticas](#buenas-prcticas)
-  - [JSON y Códigos de Salida](#json-y-cdigos-de-salida)
-  - [Solución de Problemas](#solucin-de-problemas)
-  - [Desarrollo](#desarrollo)
-- [Instalación editable con extras comunes](#instalacin-editable-con-extras-comunes)
-- [Tests (verboso)](#tests-verboso)
-- [Linter (ruff)](#linter-ruff)
-  - [Contribuir](#contribuir)
-  - [Licencia](#licencia)
-    - [Pie de proyecto](#pie-de-proyecto)
-<!-- tocstop -->
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**
+
+- [📚 Índice](#-%C3%8Dndice)
+- [Instalación](#instalaci%C3%B3n)
+- [Requisitos y Extras](#requisitos-y-extras)
+- [Comandos](#comandos)
+  - [📊 sabbat-loganalyce — Analizador Avanzado de Logs](#-sabbat-loganalyce--analizador-avanzado-de-logs)
+  - [🕵️ sabbat-fileinspect — Inspector de Ficheros](#-sabbat-fileinspect--inspector-de-ficheros)
+  - [🔧 sabbat-syscheck — Auditor de Sistema (solo lectura)](#-sabbat-syscheck--auditor-de-sistema-solo-lectura)
+    - [Subcomando cronaudit (Cron + systemd timers)](#subcomando-cronaudit-cron--systemd-timers)
+  - [🌐 sabbat-netinspect — Inspector de Red y Conexiones](#-sabbat-netinspect--inspector-de-red-y-conexiones)
+- [Contribuir](#contribuir)
+- [Licencia](#licencia)
+  - [Pie de proyecto](#pie-de-proyecto)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 
 ## 📚 Índice
