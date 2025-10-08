@@ -9,9 +9,7 @@ description = "CLI toolbox: sabbat-loganalyce, sabbat-fileinspect, sabbat-sysche
 readme = "README.md"
 requires-python = ">=3.8"
 license = { text = "MIT" }
-authors = [
-  { name = "Óscar Giménez Blasco" }
-]
+authors = [{ name = "Óscar Giménez Blasco" }]
 keywords = ["cli", "logs", "security", "forensics", "sysadmin", "devops", "sre"]
 
 # Núcleo minimalista (sin deps obligatorias)
@@ -21,8 +19,7 @@ dependencies = []
 # --- Hardened regex / ReDoS-safe ---
 hardened = [
   "regex>=2024.4.16",
-  # re2 solo si hay wheel disponible (x86_64 y Python >= 3.8)
-  "re2>=0.3.5 ; platform_machine == 'x86_64' and python_version >= '3.8'",
+  "re2>=0.2.24,<0.3.0 ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version >= '3.8'",
 ]
 
 # --- GeoIP (GeoLite2 Country) ---
@@ -69,12 +66,33 @@ dev = [
   "mypy>=1.11.0",
 ]
 
-# --- Meta-extra: TODO incluido ---
+# --- Meta-extra: TODO incluido (sin autorreferencias) ---
 full = [
-  # bloques funcionales
-  "sabbat-tools[hardened,geoip,detect,images,sys,net,win]",
-  # herramientas de dev (opcional en 'full'; déjalo si te gusta tenerlo todo)
-  "sabbat-tools[dev]",
+  # hardened
+  "regex>=2024.4.16",
+  "re2>=0.2.24,<0.3.0 ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version >= '3.8'",
+  # geoip
+  "geoip2>=4.7.0",
+  "maxminddb>=2.6.2",
+  # detect
+  "chardet>=5.2.0",
+  "python-magic>=0.4.27 ; platform_system != 'Windows'",
+  "python-magic-bin>=0.4.14 ; platform_system == 'Windows'",
+  # images
+  "Pillow>=10.0.0",
+  # sys
+  "psutil>=5.9.0",
+  "distro>=1.9.0 ; platform_system == 'Linux'",
+  "humanfriendly>=10.0",
+  # net
+  "ifaddr>=0.2.0",
+  "dnspython>=2.6.1",
+  "requests>=2.32.0",
+  "pyroute2>=0.7.12 ; platform_system == 'Linux'",
+  # win
+  "colorama>=0.4.6 ; platform_system == 'Windows'",
+  # dev (opcional: si quieres que 'full' incluya herramientas de desarrollo)
+  "pytest>=8.3.0", "pytest-cov>=5.0.0", "ruff>=0.6.9", "mypy>=1.11.0",
 ]
 
 [project.scripts]
