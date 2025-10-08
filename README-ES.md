@@ -3,7 +3,6 @@
 **Table of Contents**
 
 - [🧰 sabbat-tools — Caja de Herramientas CLI de Sistema y Seguridad](#-sabbat-tools--caja-de-herramientas-cli-de-sistema-y-seguridad)
-  - [Índice](#%C3%8Dndice)
   - [Instalación](#instalaci%C3%B3n)
   - [Requisitos y Extras](#requisitos-y-extras)
   - [Comandos](#comandos)
