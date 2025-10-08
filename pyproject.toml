@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "sabbat-tools"
 version = "0.3.1"
-description = "CLI toolbox: sabbat-loganalyce & sabbat-fileinspect"
+description = "CLI toolbox: sabbat-loganalyce, sabbat-fileinspect, sabbat-syscheck, sabbat-netinspect"
 readme = "README.md"
 requires-python = ">=3.8"
 license = { text = "MIT" }
@@ -14,23 +14,73 @@ authors = [
 ]
 keywords = ["cli", "logs", "security", "forensics", "sysadmin", "devops", "sre"]
 
-# Dependencias base (deja vacío para arranque minimalista)
+# Núcleo minimalista (sin deps obligatorias)
 dependencies = []
 
 [project.optional-dependencies]
-geoip = ["geoip2>=4.6.0"]
-images = ["Pillow>=10.0.0"]
-detect = [
-  "chardet>=5.1.0",
-  "python-magic>=0.4.27; platform_system != 'Windows'",
-  "python-magic-bin>=0.4.14; platform_system == 'Windows'"
+# --- Hardened regex / ReDoS-safe ---
+hardened = [
+  "regex>=2024.4.16",
+  # re2 solo si hay wheel disponible (x86_64 y Python >= 3.8)
+  "re2>=0.3.5 ; platform_machine == 'x86_64' and python_version >= '3.8'",
 ]
-hardened = ["regex>=2024.5.15"]
+
+# --- GeoIP (GeoLite2 Country) ---
+geoip = [
+  "geoip2>=4.7.0",
+  "maxminddb>=2.6.2",
+]
+
+# --- Detección de codificación y MIME ---
+detect = [
+  "chardet>=5.2.0",
+  "python-magic>=0.4.27 ; platform_system != 'Windows'",
+  "python-magic-bin>=0.4.14 ; platform_system == 'Windows'",
+]
+
+# --- Imágenes (verificación/metadatos) ---
+images = ["Pillow>=10.0.0"]
+
+# --- Sistema (sabbat-syscheck) ---
+sys = [
+  "psutil>=5.9.0",
+  "distro>=1.9.0 ; platform_system == 'Linux'",
+  "humanfriendly>=10.0",
+]
+
+# --- Red (sabbat-netinspect) ---
+net = [
+  "psutil>=5.9.0",
+  "ifaddr>=0.2.0",
+  "dnspython>=2.6.1",
+  "requests>=2.32.0",
+  "pyroute2>=0.7.12 ; platform_system == 'Linux'",
+  # "scapy>=2.5.0",  # opcional si haces ARP/ICMP scan o sniffing
+]
+
+# --- Windows QoL (colores en consola) ---
+win = ["colorama>=0.4.6 ; platform_system == 'Windows'"]
+
+# --- Desarrollo / QA ---
+dev = [
+  "pytest>=8.3.0",
+  "pytest-cov>=5.0.0",
+  "ruff>=0.6.9",
+  "mypy>=1.11.0",
+]
+
+# --- Meta-extra: TODO incluido ---
+full = [
+  # bloques funcionales
+  "sabbat-tools[hardened,geoip,detect,images,sys,net,win]",
+  # herramientas de dev (opcional en 'full'; déjalo si te gusta tenerlo todo)
+  "sabbat-tools[dev]",
+]
 
 [project.scripts]
 sabbat-loganalyce = "sabbat_tools.loganalyce:cli_main"
 sabbat-fileinspect = "sabbat_tools.fileinspect:cli_main"
-sabbat-syscheck = "sabbat_tools.syscheck:cli_main"
+sabbat-syscheck   = "sabbat_tools.syscheck:cli_main"
 sabbat-netinspect = "sabbat_tools.netinspect:cli_main"
 
 [project.urls]
@@ -48,4 +98,3 @@ include = ["sabbat_tools*"]
 line-length = 100
 target-version = "py38"
 extend-select = ["I"]
-
