@@ -11,6 +11,7 @@
     - [🕵️ sabbat-fileinspect — File Inspector](#-sabbat-fileinspect--file-inspector)
     - [🔧 sabbat-syscheck — System Auditor (read-only)](#-sabbat-syscheck--system-auditor-read-only)
     - [🌐 sabbat-netinspect — Network & Connections Inspector](#-sabbat-netinspect--network--connections-inspector)
+      - [cronaudit subcommand (Cron + systemd timers)](#cronaudit-subcommand-cron--systemd-timers)
   - [Troubleshooting](#troubleshooting)
   - [Development](#development)
   - [Contributing](#contributing)
