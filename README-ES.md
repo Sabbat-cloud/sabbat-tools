@@ -63,10 +63,10 @@ cd sabbat-tools
 pip install .
 
 # Recomendado (todas las características):
-pip install -e ".[geoip,images,detect,hardened]"
+pip install -e .[full]
 ```
 
-> Tras instalar, tendrás `sabbat-loganalyce`, `sabbat-fileinspect` y `sabbat-syscheck` en el PATH.
+> Tras instalar, tendrás `sabbat-loganalyce`, `sabbat-fileinspect`, `sabbat-syscheck` y `sabbat-netinspect` en el PATH.
 
 ---
 
