@@ -30,10 +30,12 @@
 - Automation‑friendly (clean JSON/JSONL & predictable exit codes)
 - Thoughtful hardening: input limits, ReDoS‑safe regex paths, safe output confinement
 
-> **Español**: ¿Prefieres documentación en español? (WIP) Enlace: `README-ES.md`.
+> **Español**: ¿Prefieres documentación en español? [🇪🇸 Español](README-ES.md)
+---
+<!-- toc -->
+<!-- tocstop -->
 
 ---
-
 ## Table of Contents
 - [Installation](#installation)
 - [Requirements & Extras](#requirements--extras)
@@ -46,7 +48,6 @@
 - [Development](#development)
 - [Contributing](#contributing)
 - [License](#license)
-
 ---
 
 ## Installation
@@ -83,6 +84,8 @@ After install, you’ll have the `sabbat-loganalyce`, `sabbat-fileinspect`, `sab
 ## Commands
 
 ### 📊 sabbat-loganalyce — Advanced Log Analyzer
+[Manual](docs/LOGANALYCE.md) · [In Spanish](docs/LOGANALYCE-ES.md)
+
 Reads plain or `.gz` logs (also from stdin) and outputs statistics, security signals and JSON/JSONL.
 
 **Examples**
@@ -100,6 +103,8 @@ sabbat-loganalyce app.log --json
 ---
 
 ### 🕵️ sabbat-fileinspect — File Inspector
+[Manual](docs/FILEINSPECT.md) · [In Spanish](docs/FILEINSPECT-ES.md)
+
 Security‑focused, portable file inspector. Understands text, images and common binary types.
 
 ```bash
@@ -110,6 +115,8 @@ sabbat-fileinspect --lang es --utc --hash sha256,sha1 --json /etc/hosts
 ---
 
 ### 🔧 sabbat-syscheck — System Auditor (read-only)
+[Manual](docs/SYSCHECK.md) · [In English](docs/SYSCHECK-ES.md)
+
 Lightweight, non‑intrusive auditor inspired by tools like Lynis. Scans SSH configuration, permissions, users and cron.
 
 **Examples**
@@ -128,6 +135,9 @@ sabbat-syscheck --raw --no-group | column -t -s $'\t'
 ---
 
 ### 🌐 sabbat-netinspect — Network & Connections Inspector
+[Manual](docs/NETINSPECT.md) · [In English](docs/NETINSPECT-ES.md)
+See [Troubleshooting](docs/NETINSPECT-TROUBLESHOOTING-ES.md)
+
 Portable (psutil‑based) inspector for live network state: connections, listening ports, process correlation, optional GeoIP, local threat intel, port whitelist checks, snapshots & diffs.
 
 **Examples**
@@ -138,7 +148,31 @@ sabbat-netinspect --json --geoip-db /var/lib/GeoIP/GeoLite2-Country.mmdb --max-c
 # Threat‑intel CSV + whitelist check for listening ports
 sabbat-netinspect --check-threat-intel --ti-csv feeds/blacklist.csv                       --check-ports --whitelist /etc/allowed_ports.conf
 ```
+#### cronaudit subcommand (Cron + systemd timers)
 
+**What it does**
+- Unified listing of **cron jobs** (system/user) & **systemd timers**.
+- Detects **dangerous patterns**: `rm -rf /`, `curl|bash`, `wget|bash`, `chmod 777`, base64→shell, `nc -e`, reverse shells, cryptominers, `http://` fetch.
+- **Path/Resolution**: non-absolute first token, unresolved binary.
+- **Env vars**: `$VAR` / `${VAR}` without default `${VAR:-def}`.
+- **Privileges**: tasks likely needing root vs. running as root without indication.
+- **Orphans**: missing user, missing binary, missing `.service` behind a timer.
+- JSON output ready for SIEM ingestion.
+
+**Examples**
+```bash
+# Full audit + JSON saved
+sabbat-syscheck cronaudit --json --output audits/cron_$(date +%Y%m%d).json
+
+# Only suspicious commands (danger patterns or your regex)
+sabbat-syscheck cronaudit --check-dangerous --pattern 'rm -rf|wget|curl.*pipe'
+
+# Privilege focus (root/excess/mismatch)
+sabbat-syscheck cronaudit --check-privileges --user root
+
+# Only systemd timers
+sabbat-syscheck cronaudit --only timers
+```
 ---
 
 ## Troubleshooting

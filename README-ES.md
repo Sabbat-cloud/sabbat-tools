@@ -30,10 +30,12 @@
 - Amigable para automatización (JSON/JSONL limpios y *exit codes* predecibles)
 - Endurecimiento: límites de entrada, rutas regex resistentes a ReDoS, confinamiento seguro de salidas
 
-> **English**: WIP docs in English are mirrored in `README.md`.
+> **English**: [🇬🇧 English](README.md) · [🇪🇸 Español](README-ES.md)
 
 ---
-
+<!-- toc -->
+<!-- tocstop -->
+---
 ## Índice
 - [Instalación](#instalación)
 - [Requisitos y Extras](#requisitos-y-extras)
@@ -83,6 +85,8 @@ Tras instalar, tendrás `sabbat-loganalyce`, `sabbat-fileinspect`, `sabbat-sysch
 ## Comandos
 
 ### 📊 sabbat-loganalyce — Analizador Avanzado de Logs
+[Manual rápido](docs/LOGANALYCE-ES.md) · [In English](docs/LOGANALYCE.md)
+
 Lee logs planos o `.gz` (también desde `stdin`) y saca estadísticas, señales de seguridad y JSON/JSONL.
 
 **Ejemplos**
@@ -100,6 +104,8 @@ sabbat-loganalyce app.log --json
 ---
 
 ### 🕵️ sabbat-fileinspect — Inspector de Ficheros
+[Manual rápido](docs/FILEINSPECT-ES.md) · [In English](docs/FILEINSPECT.md)
+
 Inspector portable con foco en seguridad. Entiende texto, imágenes y binarios comunes.
 
 ```bash
@@ -110,7 +116,62 @@ sabbat-fileinspect --lang es --utc --hash sha256,sha1 --json /etc/hosts
 ---
 
 ### 🔧 sabbat-syscheck — Auditor de Sistema (solo lectura)
+[Manual rápido](docs/SYSCHECK-ES.md) · [In English](docs/SYSCHECK.md)
+
 Auditor ligero inspirado en Lynis. Revisa SSH, permisos, usuarios y cron para detectar desconfiguraciones comunes. **Solo lectura**, apto para CI, bilingüe y con salidas JSON/JSONL estables.
+
+**Módulos**
+- `--check-ssh` — parsea `sshd_config` (ej.: `PermitRootLogin`, `PasswordAuthentication`, `X11Forwarding`, `MaxAuthTries`).
+- `--check-perms` — ficheros/dirs escribibles por todos bajo rutas críticas (`/etc`, `/var`, `/usr/bin`), con sensibilidad a sticky-bit (1777 → INFO).
+- `--check-users` — UID 0 duplicados, contraseñas vacías y cuentas de sistema con shells interactivos.
+- `--check-cron` — parser robusto de crons de sistema/usuario; detecta rutas relativas, uso de `/tmp` y scripts world‑writable.
+
+**Salida y *Exit codes***
+- Humano: agrupado (`--group`/`--no-group`), `--group-show N`
+- Máquina: `--json`, `--jsonl`, `--raw` (TSV: `RISK\tMODULE\tMESSAGE\tPATH\tEVIDENCE`)
+- Códigos de salida: `0` OK · `1` error de ejecución · `2` hallazgos MEDIO/ALTO
+
+**Ejemplos con modulo cronaudit**
+```bash
+# Auditoría completa + JSON a fichero
+sabbat-syscheck cronaudit --json --output audits/cron_$(date +%Y%m%d).json
+
+# Solo sospechosos (patrones peligrosos o tu regex)
+sabbat-syscheck cronaudit --check-dangerous --pattern 'rm -rf|wget|curl.*pipe'
+
+# Foco en privilegios (root/excesos/mismatch)
+sabbat-syscheck cronaudit --check-privileges --user root
+
+# Solo timers de systemd
+sabbat-syscheck cronaudit --only timers
+```
+**Ejemplos**
+
+```bash
+# Ejecutar todo (por defecto)
+sabbat-syscheck
+
+# JSON para dashboards/ingestión
+sabbat-syscheck --json > syscheck.json
+sabbat-syscheck --jsonl | jq .
+
+# TSV sin agrupar (greppable)
+sabbat-syscheck --raw --no-group | column -t -s $'\t'
+
+# Limitar escaneo de permisos
+sabbat-syscheck --check-perms --max-files 50000 --exclude /var/lib/docker /snap
+```
+
+#### Subcomando cronaudit (Cron + systemd timers)
+
+**Qué hace**
+- Listado unificado de **cron jobs** (sistema/usuarios) y **systemd timers**.
+- Detecta **patrones peligrosos**: `rm -rf /`, `curl|bash`, `wget|bash`, `chmod 777`, base64→shell, `nc -e`, reverse shells, cryptominers, descargas `http://`.
+- **Rutas/Resolución**: primer token no absoluto, binario no resoluble.
+- **Variables**: `$VAR` / `${VAR}` sin default `${VAR:-def}`.
+- **Privilegios**: tareas que probablemente requieran root vs. ejecución como root sin indicios.
+- **Huérfanos**: usuario inexistente, binario faltante, `.service` ausente detrás de un timer.
+- Salida JSON apta para SIEM.
 
 **Ejemplos**
 ```bash
@@ -131,6 +192,9 @@ sabbat-syscheck --check-perms --max-files 50000 --exclude /var/lib/docker /snap
 ---
 
 ### 🌐 sabbat-netinspect — Inspector de Red y Conexiones
+[Manual rápido](docs/NETINSPECT-ES.md) · [In English](docs/NETINSPECT.md)
+Ver [Troubleshooting](docs/NETINSPECT-TROUBLESHOOTING-ES.md)
+
 Inspector **en vivo** del estado de red: conexiones activas, puertos en escucha, correlación con procesos, GeoIP opcional, inteligencia de amenazas local (CSV), whitelist de puertos, snapshots y diffs.
 
 **Ejemplos**
