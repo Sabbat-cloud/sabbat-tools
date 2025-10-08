@@ -1,0 +1,37 @@
+# sabbat-tools — requirements.txt
+# Cubre: loganalyce, fileinspect, checksys, netinspect
+# Incluye extras: hardened, geoip, detect, images
+
+# --- Núcleo / sistema ---
+psutil>=5.9.0
+
+# --- Endurecimiento de regex (ReDoS-safe) ---
+regex>=2024.4.16
+re2>=0.3.5 ; platform_machine == "x86_64" and python_version >= "3.8"
+
+# --- GeoIP (GeoLite2 Country) ---
+geoip2>=4.7.0
+maxminddb>=2.6.2
+
+# --- Detección de codificación y tipo MIME ---
+chardet>=5.2.0
+python-magic>=0.4.27 ; platform_system != "Windows"
+python-magic-bin>=0.4.14 ; platform_system == "Windows"
+
+# --- Imágenes (verificación y metadatos) ---
+Pillow>=10.0.0
+
+# --- UX en Windows (colores ANSI) ---
+colorama>=0.4.6 ; platform_system == "Windows"
+
+# --- checksys (info del sistema amigable) ---
+distro>=1.9.0
+humanfriendly>=10.0
+
+# --- netinspect (red portátil y pruebas) ---
+ifaddr>=0.2.0
+dnspython>=2.6.1
+requests>=2.32.0
+pyroute2>=0.7.12 ; platform_system == "Linux"
+# scapy>=2.5.0             # opcional. necesario en nueva version para ARP/ICMP scan o sniffing
+
