@@ -34,24 +34,7 @@
 > **English**: [🇬🇧 English](README.md) · [🇪🇸 Español](README-ES.md)
 
 ---
-<!-- toc -->
-<!-- tocstop -->
 ---
-## Índice
-- [Instalación](#instalación)
-- [Requisitos y Extras](#requisitos-y-extras)
-- [Comandos](#comandos)
-  - [📊 sabbat-loganalyce — Analizador Avanzado de Logs](#-sabbat-loganalyce--analizador-avanzado-de-logs)
-  - [🕵️ sabbat-fileinspect — Inspector de Ficheros](#-sabbat-fileinspect--inspector-de-ficheros)
-  - [🔧 sabbat-syscheck — Auditor de Sistema (solo lectura)](#-sabbat-syscheck--auditor-de-sistema-solo-lectura)
-  - [🌐 sabbat-netinspect — Inspector de Red y Conexiones](#-sabbat-netinspect--inspector-de-red-y-conexiones)
-- [Solución de Problemas](#solución-de-problemas)
-- [Desarrollo](#desarrollo)
-- [Contribuir](#contribuir)
-- [Licencia](#licencia)
-
----
-
 ## Instalación
 
 ```bash

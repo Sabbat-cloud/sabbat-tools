@@ -33,8 +33,6 @@
 
 > **Español**: ¿Prefieres documentación en español? [🇪🇸 Español](README-ES.md)
 ---
-<!-- toc -->
-<!-- tocstop -->
 
 ---
 ## Table of Contents
@@ -116,7 +114,7 @@ sabbat-fileinspect --lang es --utc --hash sha256,sha1 --json /etc/hosts
 ---
 
 ### 🔧 sabbat-syscheck — System Auditor (read-only)
-[Manual](docs/SYSCHECK.md) · [In English](docs/SYSCHECK-ES.md)
+[Manual](docs/SYSCHECK.md) · [In Spanish](docs/SYSCHECK-ES.md)
 
 Lightweight, non‑intrusive auditor inspired by tools like Lynis. Scans SSH configuration, permissions, users and cron.
 
@@ -131,23 +129,6 @@ sabbat-syscheck --jsonl | jq .
 
 # Raw TSV (easy grepping)
 sabbat-syscheck --raw --no-group | column -t -s $'\t'
-```
-
----
-
-### 🌐 sabbat-netinspect — Network & Connections Inspector
-[Manual](docs/NETINSPECT.md) · [In English](docs/NETINSPECT-ES.md)
-See [Troubleshooting](docs/NETINSPECT-TROUBLESHOOTING-ES.md)
-
-Portable (psutil‑based) inspector for live network state: connections, listening ports, process correlation, optional GeoIP, local threat intel, port whitelist checks, snapshots & diffs.
-
-**Examples**
-```bash
-# JSON with GeoIP and connection cap
-sabbat-netinspect --json --geoip-db /var/lib/GeoIP/GeoLite2-Country.mmdb --max-conns 500
-
-# Threat‑intel CSV + whitelist check for listening ports
-sabbat-netinspect --check-threat-intel --ti-csv feeds/blacklist.csv                       --check-ports --whitelist /etc/allowed_ports.conf
 ```
 #### cronaudit subcommand (Cron + systemd timers)
 
@@ -173,6 +154,22 @@ sabbat-syscheck cronaudit --check-privileges --user root
 
 # Only systemd timers
 sabbat-syscheck cronaudit --only timers
+```
+---
+
+### 🌐 sabbat-netinspect — Network & Connections Inspector
+[Manual](docs/NETINSPECT.md) · [In Spanish](docs/NETINSPECT-ES.md)
+See [Troubleshooting](docs/NETINSPECT-TROUBLESHOOTING-ES.md)
+
+Portable (psutil‑based) inspector for live network state: connections, listening ports, process correlation, optional GeoIP, local threat intel, port whitelist checks, snapshots & diffs.
+
+**Examples**
+```bash
+# JSON with GeoIP and connection cap
+sabbat-netinspect --json --geoip-db /var/lib/GeoIP/GeoLite2-Country.mmdb --max-conns 500
+
+# Threat‑intel CSV + whitelist check for listening ports
+sabbat-netinspect --check-threat-intel --ti-csv feeds/blacklist.csv                       --check-ports --whitelist /etc/allowed_ports.conf
 ```
 ---
 
