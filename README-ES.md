@@ -1,3 +1,23 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**
+
+- [🧰 sabbat-tools — Caja de Herramientas CLI de Sistema y Seguridad](#-sabbat-tools--caja-de-herramientas-cli-de-sistema-y-seguridad)
+  - [Índice](#%C3%8Dndice)
+  - [Instalación](#instalaci%C3%B3n)
+  - [Requisitos y Extras](#requisitos-y-extras)
+  - [Comandos](#comandos)
+    - [📊 sabbat-loganalyce — Analizador Avanzado de Logs](#-sabbat-loganalyce--analizador-avanzado-de-logs)
+    - [🕵️ sabbat-fileinspect — Inspector de Ficheros](#-sabbat-fileinspect--inspector-de-ficheros)
+    - [🔧 sabbat-syscheck — Auditor de Sistema (solo lectura)](#-sabbat-syscheck--auditor-de-sistema-solo-lectura)
+    - [🌐 sabbat-netinspect — Inspector de Red y Conexiones](#-sabbat-netinspect--inspector-de-red-y-conexiones)
+  - [Solución de Problemas](#soluci%C3%B3n-de-problemas)
+  - [Desarrollo](#desarrollo)
+  - [Contribuir](#contribuir)
+  - [Licencia](#licencia)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # 🧰 sabbat-tools — Caja de Herramientas CLI de Sistema y Seguridad
 
 [![CI](https://github.com/Sabbat-cloud/sabbat-tools/actions/workflows/ci-lean.yml/badge.svg)](https://github.com/Sabbat-cloud/sabbat-tools/actions/workflows/ci-lean.yml)
