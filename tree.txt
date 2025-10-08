@@ -1,12 +1,41 @@
-sabbat-tools/
-├─ sabbat_tools/
-│  ├─ __init__.py
-│  ├─ loganalyce.py
-│  └─ fileinspect.py
-├─ README.md
-├─ CHANGELOG.md
-├─ pyproject.toml
-├─ LICENSE
-└─ .github/
-   └─ workflows/
-      └─ ci.yml
+.
+├── CHANGELOG.md
+├── LICENSE
+├── MANIFEST.in
+├── Makefile
+├── README-ES.md
+├── README.md
+├── docs
+│   ├── FILEINSPECT-ES.md
+│   ├── FILEINSPECT.md
+│   ├── LOGANALYCE-ES.md
+│   ├── LOGANALYCE.md
+│   ├── NETINSPECT-ES.md
+│   ├── NETINSPECT-TROUBLESHOOTING-ES.md
+│   ├── NETINSPECT-TROUBLESHOOTING.md
+│   ├── NETINSPECT.md
+│   ├── SYSCHECK-ES.md
+│   └── SYSCHECK.md
+├── pyproject.toml
+├── pytest.ini
+├── requirements-dev.txt
+├── requirements.txt
+├── sabbat_tools
+│   ├── __init__.py
+│   ├── audits
+│   ├── fileinspect.py
+│   ├── loganalyce.py
+│   ├── netinspect.py
+│   └── syscheck.py
+├── scripts
+│   └── gen_toc.py
+├── tests
+│   ├── conftest.py
+│   ├── pysql
+│   ├── test_fileinspect.py
+│   ├── test_loganalyce.py
+│   ├── test_netinspect.py
+│   └── test_syscheck.py
+└── tree.txt
+
+6 directories, 33 files
