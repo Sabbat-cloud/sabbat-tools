@@ -1,0 +1,135 @@
+diff --git a/sabbat_tools/loganalyce.py b/sabbat_tools/loganalyce.py
+index 1234567..89abcde 100644
+--- a/sabbat_tools/loganalyce.py
++++ b/sabbat_tools/loganalyce.py
+@@ -252,22 +252,70 @@ def ensure_readable_file(path_str: str) -> tuple[bool, str | None, int]:
+-    # 3) Intento de apertura no destructiva para confirmar legibilidad
+-    try:
+-        if p.suffix == ".gz":
+-            with gzip.open(p, "rt", errors="ignore") as fh:
+-                fh.read(0)
+-        else:
+-            with open(p, "rb") as fh:
+-                fh.read(0)
+-    except PermissionError:
+-        return False, T["perm_denied"].format(file=path_str), 2
+-    except IsADirectoryError:
+-        return False, T.get("is_dir", T["bad_file"]).format(file=path_str), 2
+-    except OSError as e:
+-        return False, T["analysis_error"].format(err=e), 2
++    # 3) Intento de apertura no destructiva para confirmar legibilidad
++    #    con autodetección de compresión por magic bytes (gz/bz2/xz/zst).
++    try:
++        import io
++        with open(p, "rb") as fbin:
++            head = fbin.read(8)
++            try:
++                fbin.seek(0)
++            except Exception:
++                pass
++            enc = "utf-8"
++            # GZIP: 1F 8B
++            if head.startswith(b"\x1f\x8b"):
++                with gzip.open(fbin, "rt", encoding=enc, errors="ignore") as fh:
++                    fh.read(0)
++            # BZ2: "BZh"
++            elif head.startswith(b"BZh"):
++                import bz2
++                with bz2.open(fbin, "rt", encoding=enc, errors="ignore") as fh:
++                    fh.read(0)
++            # XZ/LZMA: FD 37 7A 58 5A 00
++            elif head.startswith(b"\xFD7zXZ\x00"):
++                import lzma
++                with lzma.open(fbin, "rt", encoding=enc, errors="ignore") as fh:
++                    fh.read(0)
++            # Zstandard: 28 B5 2F FD
++            elif head.startswith(b"\x28\xb5\x2f\xfd"):
++                try:
++                    import zstandard as zstd
++                    dctx = zstd.ZstdDecompressor()
++                    stream = dctx.stream_reader(fbin)
++                    txt = io.TextIOWrapper(stream, encoding=enc, errors="ignore")
++                    txt.read(0)
++                except Exception:
++                    # Si no está zstandard o falla, comprobamos lectura binaria mínima
++                    with open(p, "rb") as fh:
++                        fh.read(1)
++            else:
++                # Plano (sin compresión) o formato no soportado: lectura binaria mínima
++                with open(p, "rb") as fh:
++                    fh.read(1)
++    except PermissionError:
++        return False, T["perm_denied"].format(file=path_str), 2
++    except IsADirectoryError:
++        return False, T.get("is_dir", T["bad_file"]).format(file=path_str), 2
++    except OSError as e:
++        return False, T["analysis_error"].format(err=e), 2
+ 
+     return True, None, 0
+ 
+@@ -386,11 +434,62 @@ class LogAnalyzer:
+-    def _open_stream(self):
+-        if self.log_file == "-":
+-            if self.deny_stdin:
+-                raise PermissionError("stdin disabled by --deny-stdin")
+-            return sys.stdin
+-        if self.log_file.endswith(".gz"):
+-            return gzip.open(self.log_file, "rt", encoding=self._resolve_encoding(), errors="surrogateescape", newline="")
+-        return open(self.log_file, "r", encoding=self._resolve_encoding(), errors="surrogateescape", newline="")
++    def _open_stream(self):
++        """
++        Abre logs soportando stdin y múltiples compresiones con autodetección
++        por magic bytes. Devuelve un TextIO listo para iterar líneas.
++        Formatos soportados: gzip, bzip2, xz/lzma y zstd (opcional).
++        """
++        if self.log_file == "-":
++            if self.deny_stdin:
++                raise PermissionError("stdin disabled by --deny-stdin")
++            return sys.stdin
++
++        # Lectura binaria ligera para detectar formato
++        fbin = open(self.log_file, "rb", buffering=1024 * 256)
++        try:
++            head = fbin.peek(8) if hasattr(fbin, "peek") else fbin.read(8)
++        except Exception:
++            head = b""
++        try:
++            fbin.seek(0)
++        except Exception:
++            pass
++
++        enc = self._resolve_encoding()
++
++        # GZIP: 1F 8B
++        if head.startswith(b"\x1f\x8b"):
++            return gzip.open(fbin, "rt", encoding=enc, errors="surrogateescape", newline="")
++
++        # BZ2: "BZh"
++        if head.startswith(b"BZh"):
++            import bz2
++            return bz2.open(fbin, "rt", encoding=enc, errors="surrogateescape", newline="")
++
++        # XZ/LZMA: FD 37 7A 58 5A 00
++        if head.startswith(b"\xFD7zXZ\x00"):
++            import lzma
++            return lzma.open(fbin, "rt", encoding=enc, errors="surrogateescape", newline="")
++
++        # Zstandard (opcional): 28 B5 2F FD
++        if head.startswith(b"\x28\xb5\x2f\xfd"):
++            try:
++                import zstandard as zstd
++                dctx = zstd.ZstdDecompressor()
++                stream = dctx.stream_reader(fbin)
++                import io
++                return io.TextIOWrapper(stream, encoding=enc, errors="surrogateescape", newline="")
++            except Exception:
++                # Si no está zstandard o falla, caemos a lectura normal en texto (verás bytes raros)
++                pass
++
++        # Plano (sin compresión) o formato no reconocido
++        try:
++            fbin.seek(0)
++        except Exception:
++            fbin.close()
++            return open(self.log_file, "r", encoding=enc, errors="surrogateescape", newline="")
++        return open(self.log_file, "r", encoding=enc, errors="surrogateescape", newline="")

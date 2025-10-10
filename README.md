@@ -77,6 +77,7 @@ After install, you’ll have the `sabbat-loganalyce`, `sabbat-fileinspect`, `sab
   * `images`: `Pillow` to safely read image metadata.
   * `sys`: `psutil`, `distro`, `humanfriendly`.
   * `net`: `psutil`, `ifaddr`, `dnspython`, `requests`, (`pyroute2` on Linux).
+  * **`codecs` (new)**: `zstandard` to read `.zst` logs in **sabbat-loganalyce** (other formats built-in: `.gz`, `.bz2`, `.xz`, `.lzma`).
 
 ---
 
@@ -85,19 +86,41 @@ After install, you’ll have the `sabbat-loganalyce`, `sabbat-fileinspect`, `sab
 ### 📊 sabbat-loganalyce — Advanced Log Analyzer
 [Manual](docs/LOGANALYCE.md) · [In Spanish](docs/LOGANALYCE-ES.md)
 
-Reads plain or `.gz` logs (also from stdin) and outputs statistics, security signals and JSON/JSONL.
+Reads plain logs or compressed logs by **magic bytes**: `.gz`, `.bz2`, `.xz`, `.lzma`, and `.zst` (if `zstandard` installed). Supports stdin, time filters, GeoIP, multi‑threaded stats, and hardened regex mode.
+
+**Highlights (recent)**
+- Compression auto‑detect by magic bytes (no need to rely on file extension).
+- Permission‑aware errors with i18n messages.
+- Early **large‑log prescan** + byte/line safety caps.
+- Hardened regex option (`--hardened-regex`) using the `regex` module.
+- Predictable exit codes: `0` ok · `1` runtime error · `2` security alerts or permission/unsupported codec errors.
+- Safe output confinement (CWD) unless `--unsafe-output`.
+- Stdin enable/disable with `--deny-stdin`.
+- Better JSON schema + GeoIP LRU cache.
 
 **Examples**
 ```bash
 # Full analysis (columns)
 sabbat-loganalyce samples/access.log
 
+# Read compressed (auto-detect): gz/bz2/xz/lzma/zst*
+sabbat-loganalyce logs/access.log.gz
+sabbat-loganalyce logs/access.log.bz2
+sabbat-loganalyce logs/access.log.xz
+sabbat-loganalyce logs/access.log.lzma
+sabbat-loganalyce logs/access.log.zst       # requires: pip install zstandard
+
 # Pattern search (first 50, ordered)
 sabbat-loganalyce error.log -p "Timeout|Exception" -c 50
 
-# JSON output
-sabbat-loganalyce app.log --json
+# JSON output + hardened regex + time window
+sabbat-loganalyce app.log --json --hardened-regex --since "2025-09-01" --until "2025-09-30 23:59:59"
 ```
+
+**Exit codes**
+- `0` success (no security alerts)
+- `2` security alerts detected (SQLi/XSS/traversal) **or** permission/unsupported codec errors
+- `1` other runtime errors
 
 ---
 
@@ -177,6 +200,8 @@ sabbat-netinspect --check-threat-intel --ti-csv feeds/blacklist.csv             
 - `re2` not available: safe to ignore; `regex` provides hardened engine.
 - GeoIP DB missing: use `--geoip-db` or skip GeoIP features.
 - Colors in CI: export `NO_COLOR=1`.
+- **Compressed logs**: `.zst` requires `pip install zstandard`. Other formats work out‑of‑the‑box.
+- **Permissions**: if you get “permission denied”, try `sudo` or adjust ACLs on the log path.
 
 ---
 
@@ -242,4 +267,3 @@ PRs and issues welcome. Please keep the philosophy:
 
 ## License
 MIT © Óscar Giménez Blasco
-

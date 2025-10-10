@@ -6,6 +6,9 @@ import argparse
 import sys
 import json
 import gzip
+import bz2
+import lzma
+
 import ipaddress
 import logging
 from collections import Counter, OrderedDict
@@ -14,13 +17,21 @@ import os
 from itertools import zip_longest
 from concurrent.futures import ThreadPoolExecutor
 import signal
+import stat
+
+# zstandard opcional
+try:
+    import zstandard as zstd  # pip install zstandard
+    HAVE_ZSTD_LIB = True
+except Exception:
+    HAVE_ZSTD_LIB = False
 
 # =========================
 #  Config & Internationalization
 # =========================
 
 GEOIP_DB_PATH = "/var/lib/GeoIP/GeoLite2-Country.mmdb"
-SCHEMA_VERSION = "1.3.2"  # bump: early large-log warning
+SCHEMA_VERSION = "1.3.3"  # multicodec support
 
 # Try optional hardened regex engine (enables atomic groups/possessive quantifiers)
 try:
@@ -78,7 +89,7 @@ I18N = {
             "  * Hardened regex mode: --hardened-regex (needs 'regex' module).\n"
         ),
         "arg_lang": "Interface language: auto (default), en, es",
-        "arg_file": "Log file to analyze (can be .gz or '-' for stdin)",
+        "arg_file": "Log file to analyze (can be .gz/.bz2/.xz/.zst or '-' for stdin)",
         "arg_pattern": "Specific pattern (regex) to search for (ordered, single-thread)",
         "arg_count": "Number of matched lines to show (pattern search)",
         "arg_json": "Show output in JSON format",
@@ -143,6 +154,10 @@ I18N = {
         "arg_deny_stdin": "Refuse reading from stdin (security policy)",
         "arg_hardened_regex": "Use hardened regex engine if available ('regex' module) to reduce ReDoS risk",
         "arg_large_threshold": "Warn early if line count >= N before analysis (0 to disable)",
+        "perm_denied": "Permission denied: cannot read '{file}'. Try 'sudo' or adjust permissions.",
+        "unsupported_codec": "Unsupported compressed format for file '{file}'.",
+        "zstd_missing": "The file '{file}' appears to be Zstandard (.zst) but 'zstandard' module is not installed.",
+        "is_dir": "Error: '{file}' is a directory, not a regular file.",
     },
     "es": {
         "description": "Analizador avanzado de logs con salida segura, filtrado temporal, geolocalización y multihilo.",
@@ -159,7 +174,7 @@ I18N = {
             "  * Modo regex endurecido: --hardened-regex (requiere módulo 'regex').\n"
         ),
         "arg_lang": "Idioma de la interfaz: auto (por defecto), en, es",
-        "arg_file": "Fichero de log a analizar (puede ser .gz o '-' para stdin)",
+        "arg_file": "Fichero de log a analizar (puede ser .gz/.bz2/.xz/.zst o '-' para stdin)",
         "arg_pattern": "Patrón (regex) a buscar (ordenado, monohilo)",
         "arg_count": "Número de líneas coincidentes a mostrar (búsqueda por patrón)",
         "arg_json": "Mostrar salida en formato JSON",
@@ -224,6 +239,10 @@ I18N = {
         "arg_deny_stdin": "Rechazar lectura desde stdin (política de seguridad)",
         "arg_hardened_regex": "Usar motor regex endurecido si está disponible (módulo 'regex') para reducir ReDoS",
         "arg_large_threshold": "Avisar antes si el nº de líneas >= N (0 para desactivar)",
+        "perm_denied": "Permiso denegado: no puedo leer '{file}'. Prueba con 'sudo' o ajusta los permisos.",
+        "unsupported_codec": "Formato de compresión no soportado para el fichero '{file}'.",
+        "zstd_missing": "El fichero '{file}' parece Zstandard (.zst) pero falta el módulo 'zstandard'.",
+        "is_dir": "Error: '{file}' es un directorio, no un fichero.",
     },
 }
 
@@ -249,6 +268,109 @@ def positive_int(value):
     if iv <= 0:
         raise argparse.ArgumentTypeError(T["invalid_int"].format(val=iv))
     return iv
+
+# ---------- File pre-checks (existence / regular / readable) ----------
+from pathlib import Path
+
+def _stderr(msg: str) -> None:
+    print(msg, file=sys.stderr)
+
+def _is_regular_file(p: Path) -> bool:
+    try:
+        return p.is_file()
+    except OSError:
+        return False
+
+def _read_header(path: Path, n: int = 8) -> bytes:
+    with open(path, "rb") as fh:
+        return fh.read(n)
+
+def ensure_readable_file(path_str: str) -> tuple[bool, str | None, int]:
+    """
+    Check that path exists, is a regular file and is readable.
+    Returns (ok, error_message, suggested_exit_code).
+    """
+    if path_str == "-":
+        return True, None, 0
+
+    p = Path(path_str)
+
+    # exists() puede lanzar PermissionError por falta de traverse en el dir
+    try:
+        exists = p.exists()
+    except PermissionError:
+        return False, T["perm_denied"].format(file=path_str), 2
+    except OSError as e:
+        return False, T["analysis_error"].format(err=e), 2
+
+    if not exists:
+        return False, T["bad_file"].format(file=path_str), 1
+
+    # is_file() también puede fallar
+    try:
+        is_regular = p.is_file()
+    except PermissionError:
+        return False, T["perm_denied"].format(file=path_str), 2
+    except OSError as e:
+        return False, T["analysis_error"].format(err=e), 2
+
+    if not is_regular:
+        return False, T.get("is_dir", T["bad_file"]).format(file=path_str), 1
+
+    # Intento de apertura ligera por magic bytes
+    try:
+        header = _read_header(p, 8)
+        if header.startswith(b"\x1f\x8b"):  # gzip
+            with gzip.open(p, "rt", errors="ignore") as fh:
+                fh.read(0)
+        elif header.startswith(b"BZh"):  # bzip2
+            with bz2.open(p, "rt", errors="ignore") as fh:
+                fh.read(0)
+        elif header.startswith(b"\xFD7zXZ\x00"):  # xz
+            with lzma.open(p, "rt", errors="ignore", format=lzma.FORMAT_XZ) as fh:
+                fh.read(0)
+        elif header.startswith(b"\x28\xB5\x2F\xFD"):  # zstd
+            if not HAVE_ZSTD_LIB:
+                return False, T["zstd_missing"].format(file=path_str), 2
+            dctx = zstd.ZstdDecompressor()
+            with open(p, "rb") as fh:
+                with dctx.stream_reader(fh) as r:
+                    r.read(0)
+        else:
+            with open(p, "rb") as fh:
+                fh.read(0)
+    except PermissionError:
+        return False, T["perm_denied"].format(file=path_str), 2
+    except IsADirectoryError:
+        return False, T.get("is_dir", T["bad_file"]).format(file=path_str), 1
+    except OSError as e:
+        return False, T["analysis_error"].format(err=e), 2
+
+    return True, None, 0
+
+# ---------- Magic-bytes based opener ----------
+def _open_by_magic(path: str, encoding: str, errors: str = "surrogateescape"):
+    """Devuelve un objeto de lectura texto según magic bytes (gz/bz2/xz/zst/plano)."""
+    if path == "-":
+        return sys.stdin
+    with open(path, "rb") as f:
+        header = f.read(8)
+    if header.startswith(b"\x1f\x8b"):  # gzip
+        return gzip.open(path, "rt", encoding=encoding, errors=errors, newline="")
+    if header.startswith(b"BZh"):  # bzip2
+        return bz2.open(path, "rt", encoding=encoding, errors=errors, newline="")
+    if header.startswith(b"\xFD7zXZ\x00"):  # xz
+        return lzma.open(path, "rt", encoding=encoding, errors=errors, format=lzma.FORMAT_XZ, newline="")
+    if header.startswith(b"\x28\xB5\x2F\xFD"):  # zstd
+        if not HAVE_ZSTD_LIB:
+            raise OSError(T["zstd_missing"].format(file=path))
+        dctx = zstd.ZstdDecompressor()
+        fh = open(path, "rb")
+        reader = dctx.stream_reader(fh)
+        import io
+        return io.TextIOWrapper(reader, encoding=encoding, errors=errors, newline="")
+    # por defecto: texto plano
+    return open(path, "rt", encoding=encoding, errors=errors, newline="")
 
 # =========================
 #  Hardened regex builders (ReDoS mitigation)
@@ -385,11 +507,8 @@ class LogAnalyzer:
 
     # ---------- Early large-log pre-scan ----------
     def _fast_count_lines(self, path: str, chunk_size: int = 8 * 1024 * 1024) -> int | None:
-        """
-        Fast binary line counter for regular, uncompressed files.
-        Returns int (lines) or None if not applicable (stdin, .gz, errors).
-        """
-        if path == "-" or path.endswith(".gz"):
+        """Fast binary line counter for regular, uncompressed files."""
+        if path == "-" or path.endswith((".gz", ".bz2", ".xz", ".zst")):
             return None
         try:
             st = os.stat(path)
@@ -410,9 +529,6 @@ class LogAnalyzer:
             return None
 
     def prescan_and_warn(self):
-        """
-        If large_threshold > 0 and prescan is possible, warn BEFORE analysis.
-        """
         if self.large_threshold and self.large_threshold > 0:
             lines = self._fast_count_lines(self.log_file)
             if lines is not None and lines >= self.large_threshold:
@@ -448,13 +564,9 @@ class LogAnalyzer:
         return None
 
     def _open_stream(self):
-        if self.log_file == "-":
-            if self.deny_stdin:
-                raise PermissionError("stdin disabled by --deny-stdin")
-            return sys.stdin
-        if self.log_file.endswith(".gz"):
-            return gzip.open(self.log_file, "rt", encoding=self._resolve_encoding(), errors="surrogateescape", newline="")
-        return open(self.log_file, "r", encoding=self._resolve_encoding(), errors="surrogateescape", newline="")
+        if self.log_file == "-" and self.deny_stdin:
+            raise PermissionError("stdin disabled by --deny-stdin")
+        return _open_by_magic(self.log_file, encoding=self._resolve_encoding(), errors="surrogateescape")
 
     def _resolve_encoding(self):
         if self.encoding and self.encoding.lower() != "auto":
@@ -506,7 +618,9 @@ class LogAnalyzer:
                     if sum(stats.get("suspicious_activity", {}).values()) > 0:
                         exit_code = 2
         except FileNotFoundError:
-            self._handle_error({"error": T["file_not_found_json"].format(file=self.log_file)})
+            self._handle_error({"error": T["file_not_found_json"].format(file=self.log_file)}, exit_code=1)
+        except PermissionError:
+            self._handle_error({"error": T["perm_denied"].format(file=self.log_file)}, exit_code=2)
         except Exception as e:
             self.logger.error("Analysis error", exc_info=True)
             self._handle_error({"error": T["analysis_error"].format(err=e)})
@@ -518,7 +632,7 @@ class LogAnalyzer:
                 pass
         sys.exit(exit_code)
 
-    def _handle_error(self, error_msg):
+    def _handle_error(self, error_msg, exit_code: int = 1):
         if self.json_output:
             print(json.dumps(error_msg, indent=4, ensure_ascii=False))
         else:
@@ -526,7 +640,7 @@ class LogAnalyzer:
             if self.sanitize_ansi:
                 msg = ANSI_RE.sub("", msg)
             print(f"\033[1;31m{msg}\033[0m" if should_use_color() else msg)
-        sys.exit(1)
+        sys.exit(exit_code)
 
     # ---------- Time parsing ----------
 
@@ -762,7 +876,6 @@ class LogAnalyzer:
         global_stats["ips"] = self._cap_counter(global_stats["ips"], self.max_ips)
         global_stats["specific_errors"] = self._cap_counter(global_stats["specific_errors"], self.max_errors)
 
-        # (Aún conservamos el warning tardío por si el pre-scan no aplicó)
         if (self.max_ips is None and self.max_errors is None and global_stats["total_lines"] > 100_000):
             self.logger.warning(T["large_log_hint"].format(lines=global_stats["total_lines"]))
         return global_stats
@@ -1096,15 +1209,14 @@ def main():
     parser.add_argument("--large-threshold", type=int, default=100_000, help=T["arg_large_threshold"])
 
     args = parser.parse_args()
-
-    if args.file != "-" and not os.path.isfile(args.file):
-        c_err, c_reset = ("\033[1;31m", "\033[0m") if should_use_color() else ("", "")
-        msg = T["bad_file"].format(file=args.file)
+    ok, err, code = ensure_readable_file(args.file)
+    if not ok:
         if args.json:
-            print(json.dumps({"error": msg}, indent=2, ensure_ascii=False))
+            print(json.dumps({"error": err}, indent=2, ensure_ascii=False))
         else:
-            print(f"{c_err}{msg}{c_reset}")
-        return exit_code
+            c_err, c_reset = ("\033[1;31m", "\033[0m") if should_use_color() else ("", "")
+            print(f"{c_err}{err}{c_reset}")
+        return code
 
     analyzer = LogAnalyzer(
         args.file,
@@ -1143,7 +1255,8 @@ def main():
     )
 
 def cli_main():
-    main()
+    raise SystemExit(main())
 
 if __name__ == "__main__":
     cli_main()
+

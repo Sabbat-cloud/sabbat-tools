@@ -62,6 +62,7 @@ Tras instalar, tendrás `sabbat-loganalyce`, `sabbat-fileinspect`, `sabbat-sysch
   * `images`: `Pillow` para leer metadatos de imagen de forma segura.
   * `sys`: `psutil`, `distro`, `humanfriendly`.
   * `net`: `psutil`, `ifaddr`, `dnspython`, `requests` y `pyroute2` (solo Linux).
+  * **`codecs` (nuevo)**: `zstandard` para leer logs `.zst` en **sabbat-loganalyce** (otros formatos de serie: `.gz`, `.bz2`, `.xz`, `.lzma`).
 
 ---
 
@@ -70,19 +71,41 @@ Tras instalar, tendrás `sabbat-loganalyce`, `sabbat-fileinspect`, `sabbat-sysch
 ### 📊 sabbat-loganalyce — Analizador Avanzado de Logs
 [Manual rápido](docs/LOGANALYCE-ES.md) · [In English](docs/LOGANALYCE.md)
 
-Lee logs planos o `.gz` (también desde `stdin`) y saca estadísticas, señales de seguridad y JSON/JSONL.
+Lee logs planos o comprimidos por **magic bytes**: `.gz`, `.bz2`, `.xz`, `.lzma` y `.zst` (si está instalado `zstandard`). Soporta stdin, filtros temporales, GeoIP, estadísticas multihilo y modo regex endurecido.
+
+**Novedades (reciente)**
+- Detección automática por magic bytes (sin depender de la extensión).
+- Errores sensibles a permisos con mensajes i18n.
+- **Pre‑escaneo** para ficheros grandes + topes de seguridad por bytes/línea.
+- Modo regex endurecido (`--hardened-regex`) con el módulo `regex`.
+- *Exit codes* predecibles: `0` ok · `1` error de ejecución · `2` alertas de seguridad o errores de permiso/códec no soportado.
+- Confinamiento de salidas al CWD (salvo `--unsafe-output`).
+- Control de stdin (`--deny-stdin`).
+- JSON más completo + caché LRU para GeoIP.
 
 **Ejemplos**
 ```bash
 # Análisis completo (columnas)
 sabbat-loganalyce samples/access.log
 
+# Leer comprimidos (auto): gz/bz2/xz/lzma/zst*
+sabbat-loganalyce logs/access.log.gz
+sabbat-loganalyce logs/access.log.bz2
+sabbat-loganalyce logs/access.log.xz
+sabbat-loganalyce logs/access.log.lzma
+sabbat-loganalyce logs/access.log.zst    # requiere: pip install zstandard
+
 # Búsqueda por patrón (primeros 50, ordenado)
 sabbat-loganalyce error.log -p "Timeout|Exception" -c 50
 
-# Salida JSON
-sabbat-loganalyce app.log --json
+# JSON + regex endurecido + ventana temporal
+sabbat-loganalyce app.log --json --hardened-regex --since "2025-09-01" --until "2025-09-30 23:59:59"
 ```
+
+**Códigos de salida**
+- `0` éxito (sin alertas de seguridad)
+- `2` se detectaron alertas de seguridad (SQLi/XSS/traversal) **o** errores de permisos/códec no soportado
+- `1` otros errores de ejecución
 
 ---
 
@@ -101,35 +124,9 @@ sabbat-fileinspect --lang es --utc --hash sha256,sha1 --json /etc/hosts
 ### 🔧 sabbat-syscheck — Auditor de Sistema (solo lectura)
 [Manual rápido](docs/SYSCHECK-ES.md) · [In English](docs/SYSCHECK.md)
 
-Auditor ligero inspirado en Lynis. Revisa SSH, permisos, usuarios y cron para detectar desconfiguraciones comunes. **Solo lectura**, apto para CI, bilingüe y con salidas JSON/JSONL estables.
+Auditor ligero inspirado en Lynis. Revisa SSH, permisos, usuarios y cron.
 
-**Módulos**
-- `--check-ssh` — parsea `sshd_config` (ej.: `PermitRootLogin`, `PasswordAuthentication`, `X11Forwarding`, `MaxAuthTries`).
-- `--check-perms` — ficheros/dirs escribibles por todos bajo rutas críticas (`/etc`, `/var`, `/usr/bin`), con sensibilidad a sticky-bit (1777 → INFO).
-- `--check-users` — UID 0 duplicados, contraseñas vacías y cuentas de sistema con shells interactivos.
-- `--check-cron` — parser robusto de crons de sistema/usuario; detecta rutas relativas, uso de `/tmp` y scripts world‑writable.
-
-**Salida y *Exit codes***
-- Humano: agrupado (`--group`/`--no-group`), `--group-show N`
-- Máquina: `--json`, `--jsonl`, `--raw` (TSV: `RISK\tMODULE\tMESSAGE\tPATH\tEVIDENCE`)
-- Códigos de salida: `0` OK · `1` error de ejecución · `2` hallazgos MEDIO/ALTO
-
-**Ejemplos con modulo cronaudit**
-```bash
-# Auditoría completa + JSON a fichero
-sabbat-syscheck cronaudit --json --output audits/cron_$(date +%Y%m%d).json
-
-# Solo sospechosos (patrones peligrosos o tu regex)
-sabbat-syscheck cronaudit --check-dangerous --pattern 'rm -rf|wget|curl.*pipe'
-
-# Foco en privilegios (root/excesos/mismatch)
-sabbat-syscheck cronaudit --check-privileges --user root
-
-# Solo timers de systemd
-sabbat-syscheck cronaudit --only timers
-```
 **Ejemplos**
-
 ```bash
 # Ejecutar todo (por defecto)
 sabbat-syscheck
@@ -138,13 +135,9 @@ sabbat-syscheck
 sabbat-syscheck --json > syscheck.json
 sabbat-syscheck --jsonl | jq .
 
-# TSV sin agrupar (greppable)
+# TSV (greppable)
 sabbat-syscheck --raw --no-group | column -t -s $'\t'
-
-# Limitar escaneo de permisos
-sabbat-syscheck --check-perms --max-files 50000 --exclude /var/lib/docker /snap
 ```
-
 #### Subcomando cronaudit (Cron + systemd timers)
 
 **Qué hace**
@@ -158,27 +151,25 @@ sabbat-syscheck --check-perms --max-files 50000 --exclude /var/lib/docker /snap
 
 **Ejemplos**
 ```bash
-# Ejecutar todo (por defecto)
-sabbat-syscheck
+# Auditoría completa + JSON a fichero
+sabbat-syscheck cronaudit --json --output audits/cron_$(date +%Y%m%d).json
 
-# JSON para dashboards/ingestión
-sabbat-syscheck --json > syscheck.json
-sabbat-syscheck --jsonl | jq .
+# Solo sospechosos (patrones peligrosos o tu regex)
+sabbat-syscheck cronaudit --check-dangerous --pattern 'rm -rf|wget|curl.*pipe'
 
-# TSV sin agrupar (greppable)
-sabbat-syscheck --raw --no-group | column -t -s $'\t'
+# Foco en privilegios (root/excesos/mismatch)
+sabbat-syscheck cronaudit --check-privileges --user root
 
-# Limitar escaneo de permisos
-sabbat-syscheck --check-perms --max-files 50000 --exclude /var/lib/docker /snap
+# Solo timers de systemd
+sabbat-syscheck cronaudit --only timers
 ```
-
 ---
 
 ### 🌐 sabbat-netinspect — Inspector de Red y Conexiones
 [Manual rápido](docs/NETINSPECT-ES.md) · [In English](docs/NETINSPECT.md)
 Ver [Troubleshooting](docs/NETINSPECT-TROUBLESHOOTING-ES.md)
 
-Inspector **en vivo** del estado de red: conexiones activas, puertos en escucha, correlación con procesos, GeoIP opcional, inteligencia de amenazas local (CSV), whitelist de puertos, snapshots y diffs.
+Inspector en vivo del estado de red: conexiones, puertos en escucha, correlación con procesos, GeoIP opcional, inteligencia de amenazas local, whitelist de puertos, snapshots y diffs.
 
 **Ejemplos**
 ```bash
@@ -195,6 +186,8 @@ sabbat-netinspect --check-threat-intel --ti-csv feeds/blacklist.csv             
 - `re2` no disponible: se puede ignorar; `regex` cubre el endurecimiento.
 - Base GeoIP ausente: usa `--geoip-db` o desactiva funciones GeoIP.
 - Colores en CI: exporta `NO_COLOR=1`.
+- **Logs comprimidos**: `.zst` requiere `pip install zstandard`. El resto funcionan de serie.
+- **Permisos**: si ves “permiso denegado”, ejecuta con `sudo` o ajusta ACLs en la ruta del log.
 
 ---
 
@@ -260,3 +253,4 @@ sabbat_tools/
 
 ## Licencia
 MIT © Óscar Giménez Blasco
+

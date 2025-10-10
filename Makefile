@@ -1,28 +1,39 @@
-# Makefile for sabbat-tools
-.PHONY: test lint fmt install dev clean
-
+#Makefile for sabbat-tools
+# Variables
 PY?=python3
+VENV?=.venv
+GEOIP_DIR?=data/GeoLite2
+GEOIP_DB?=$(GEOIP_DIR)/GeoLite2-Country.mmdb
+GEOLITE_LICENSE_KEY?=$(GEOLITE_LICENSE_KEY)
 
-install:
-	$(PY) -m pip install -e .
+.PHONY: venv install download-geolite verify-extras lint test build clean
 
-dev:
-	$(PY) -m pip install -e ".[detect,images,hardened]"
-	$(PY) -m pip install -U pytest ruff
+venv:
+	$(PY) -m venv $(VENV)
+	. $(VENV)/bin/activate && pip install -U pip wheel
 
-test:
-	$(PY) -m pytest -vv
+install: venv
+	. $(VENV)/bin/activate && pip install -r requirements.txt
+
+download-geolite:
+	@mkdir -p $(GEOIP_DIR)
+	@if [ -z "$(GEOLITE_LICENSE_KEY)" ]; then \
+		echo "ERROR: define GEOLITE_LICENSE_KEY en el entorno"; exit 1; \
+	fi
+	@$(PY) scripts/download_geolite.py --license-key "$(GEOLITE_LICENSE_KEY)" --out "$(GEOIP_DB)"
+	@echo "OK: Base GeoLite2 descargada en $(GEOIP_DB)"
+
+verify-extras:
+	@$(PY) scripts/verify_extras.py
 
 lint:
-	ruff check .
+	. $(VENV)/bin/activate && ruff check .
 
-fmt:
-	ruff check . --fix
+test:
+	. $(VENV)/bin/activate && pytest -q
+
+build:
+	. $(VENV)/bin/activate && python -m build
 
 clean:
-	find . -name "__pycache__" -type d -exec rm -rf {} + || true
-	find . -name "*.pyc" -delete || true
-
-toc:
-		python3 scripts/gen_toc.py README.md README-ES.md --maxlevel 4
-
+	rm -rf $(VENV) dist build *.egg-info .pytest_cache .ruff_cache

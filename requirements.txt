@@ -5,9 +5,14 @@
 # --- Núcleo / sistema ---
 psutil>=5.9.0
 
+# --- Salida por consola enriquecida ---
+yara-python>=4.5,<5.0
 # --- Endurecimiento de regex (ReDoS-safe) ---
 regex>=2024.4.16
 re2>=0.3.5 ; platform_machine == "x86_64" and python_version >= "3.8"
+
+# --- YARA . Deteccion malware ---
+yara-python>=4.5,<5.0
 
 # --- GeoIP (GeoLite2 Country) ---
 geoip2>=4.7.0
@@ -34,4 +39,5 @@ dnspython>=2.6.1
 requests>=2.32.0
 pyroute2>=0.7.12 ; platform_system == "Linux"
 # scapy>=2.5.0             # opcional. necesario en nueva version para ARP/ICMP scan o sniffing
+# zstandard opcional para zstd
 

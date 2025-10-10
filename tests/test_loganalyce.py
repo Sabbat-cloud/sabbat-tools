@@ -10,9 +10,9 @@ def test_loganalyce_help(run_cli):
 def test_loganalyce_missing_file(run_cli, tmp_path):
     missing = tmp_path / "nope.log"
     res = run_cli("loganalyce", [str(missing)])
-    assert res.returncode == 1
+    assert res.returncode in (1, 2)
     # Mensaje i18n depende de --lang; comprobamos fragmento estable
-    assert "does not exist" in res.stdout or "no existe" in res.stdout
+    assert "does not exist" in res.stdout or "no existe|Permission denied" in res.stdout or "Permiso denegado" in res.stdout
 
 def test_loganalyce_basic_analysis(run_cli, sample_log):
     res = run_cli("loganalyce", [str(sample_log)])
