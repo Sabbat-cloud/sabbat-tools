@@ -1,0 +1,336 @@
+Metadata-Version: 2.4
+Name: sabbat-tools
+Version: 0.3.1
+Summary: CLI toolbox: sabbat-loganalyce, sabbat-fileinspect, sabbat-syscheck, sabbat-netinspect, sabbat-rawtext
+Author: Óscar Giménez Blasco
+License: MIT
+Project-URL: Homepage, https://github.com/Sabbat-cloud/sabbat-tools
+Project-URL: Issues, https://github.com/Sabbat-cloud/sabbat-tools/issues
+Keywords: cli,logs,security,forensics,sysadmin,devops,sre
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Provides-Extra: hardened
+Requires-Dist: regex>=2024.4.16; extra == "hardened"
+Provides-Extra: text
+Requires-Dist: python-docx; extra == "text"
+Requires-Dist: odfpy; extra == "text"
+Provides-Extra: geoip
+Requires-Dist: geoip2>=4.7.0; extra == "geoip"
+Requires-Dist: maxminddb>=2.6.2; extra == "geoip"
+Provides-Extra: detect
+Requires-Dist: chardet>=5.2.0; extra == "detect"
+Requires-Dist: python-magic>=0.4.27; platform_system != "Windows" and extra == "detect"
+Requires-Dist: python-magic-bin>=0.4.14; platform_system == "Windows" and extra == "detect"
+Provides-Extra: images
+Requires-Dist: Pillow>=10.0.0; extra == "images"
+Provides-Extra: sys
+Requires-Dist: psutil>=5.9.0; extra == "sys"
+Requires-Dist: distro>=1.9.0; platform_system == "Linux" and extra == "sys"
+Requires-Dist: humanfriendly>=10.0; extra == "sys"
+Provides-Extra: net
+Requires-Dist: psutil>=5.9.0; extra == "net"
+Requires-Dist: ifaddr>=0.2.0; extra == "net"
+Requires-Dist: dnspython>=2.6.1; extra == "net"
+Requires-Dist: requests>=2.32.0; extra == "net"
+Requires-Dist: pyroute2>=0.7.12; platform_system == "Linux" and extra == "net"
+Provides-Extra: win
+Requires-Dist: colorama>=0.4.6; platform_system == "Windows" and extra == "win"
+Provides-Extra: dev
+Requires-Dist: pytest>=8.3.0; extra == "dev"
+Requires-Dist: pytest-cov>=5.0.0; extra == "dev"
+Requires-Dist: ruff>=0.6.9; extra == "dev"
+Requires-Dist: mypy>=1.11.0; extra == "dev"
+Provides-Extra: full
+Requires-Dist: regex>=2024.4.16; extra == "full"
+Requires-Dist: geoip2>=4.7.0; extra == "full"
+Requires-Dist: maxminddb>=2.6.2; extra == "full"
+Requires-Dist: chardet>=5.2.0; extra == "full"
+Requires-Dist: python-magic>=0.4.27; platform_system != "Windows" and extra == "full"
+Requires-Dist: python-magic-bin>=0.4.14; platform_system == "Windows" and extra == "full"
+Requires-Dist: Pillow>=10.0.0; extra == "full"
+Requires-Dist: psutil>=5.9.0; extra == "full"
+Requires-Dist: distro>=1.9.0; platform_system == "Linux" and extra == "full"
+Requires-Dist: humanfriendly>=10.0; extra == "full"
+Requires-Dist: ifaddr>=0.2.0; extra == "full"
+Requires-Dist: dnspython>=2.6.1; extra == "full"
+Requires-Dist: requests>=2.32.0; extra == "full"
+Requires-Dist: pyroute2>=0.7.12; platform_system == "Linux" and extra == "full"
+Requires-Dist: colorama>=0.4.6; platform_system == "Windows" and extra == "full"
+Requires-Dist: odfpy; extra == "full"
+Requires-Dist: python-docx; extra == "full"
+Requires-Dist: pytest>=8.3.0; extra == "full"
+Requires-Dist: pytest-cov>=5.0.0; extra == "full"
+Requires-Dist: ruff>=0.6.9; extra == "full"
+Requires-Dist: mypy>=1.11.0; extra == "full"
+Dynamic: license-file
+
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**
+
+- [🧰 sabbat-tools — System & Security CLI Toolbox](#-sabbat-tools--system--security-cli-toolbox)
+  - [Table of Contents](#table-of-contents)
+  - [Installation](#installation)
+  - [Requirements & Extras](#requirements--extras)
+  - [Commands](#commands)
+    - [📊 sabbat-loganalyce — Advanced Log Analyzer](#-sabbat-loganalyce--advanced-log-analyzer)
+    - [🕵️ sabbat-fileinspect — File Inspector](#-sabbat-fileinspect--file-inspector)
+    - [🔧 sabbat-syscheck — System Auditor (read-only)](#-sabbat-syscheck--system-auditor-read-only)
+      - [cronaudit subcommand (Cron + systemd timers)](#cronaudit-subcommand-cron--systemd-timers)
+    - [🌐 sabbat-netinspect — Network & Connections Inspector](#-sabbat-netinspect--network--connections-inspector)
+  - [Troubleshooting](#troubleshooting)
+  - [Development](#development)
+  - [Contributing](#contributing)
+  - [License](#license)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+# 🧰 sabbat-tools — System & Security CLI Toolbox
+
+[![CI](https://github.com/Sabbat-cloud/sabbat-tools/actions/workflows/ci-lean.yml/badge.svg)](https://github.com/Sabbat-cloud/sabbat-tools/actions/workflows/ci-lean.yml)
+![Python Versions](https://img.shields.io/badge/python-3.8--3.12-informational)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](#license)
+
+**sabbat-tools** is a collection of production-ready command‑line utilities for sysadmins, SREs and security engineers.
+
+- Bilingual UX (auto/en/es) where applicable
+- Automation‑friendly (clean JSON/JSONL & predictable exit codes)
+- Thoughtful hardening: input limits, ReDoS‑safe regex paths, safe output confinement
+
+> **Español**: ¿Prefieres documentación en español? [🇪🇸 Español](README-ES.md)
+---
+
+---
+## Table of Contents
+- [Installation](#installation)
+- [Requirements & Extras](#requirements--extras)
+- [Commands](#commands)
+  - [📊 sabbat-loganalyce — Advanced Log Analyzer](#-sabbat-loganalyce--advanced-log-analyzer)
+  - [🕵️ sabbat-fileinspect — File Inspector](#-sabbat-fileinspect--file-inspector)
+  - [🔧 sabbat-syscheck — System Auditor (read-only)](#-sabbat-syscheck--system-auditor-read-only)
+  - [🌐 sabbat-netinspect — Network & Connections Inspector](#-sabbat-netinspect--network--connections-inspector)
+- [Troubleshooting](#troubleshooting)
+- [Development](#development)
+- [Contributing](#contributing)
+- [License](#license)
+---
+
+## Installation
+
+```bash
+# Clone (dev)
+git clone https://github.com/Sabbat-cloud/sabbat-tools
+cd sabbat-tools
+
+# Recommended: all features
+pip install -e ".[full]"
+
+# or user-wide isolated:
+# pipx install "sabbat-tools[full]"
+```
+
+After install, you’ll have the `sabbat-loganalyce`, `sabbat-fileinspect`, `sabbat-syscheck` and `sabbat-netinspect` commands on PATH.
+
+---
+
+## Requirements & Extras
+
+* Python ≥ 3.8
+* Optional extras:
+  * `hardened`: `regex` (ReDoS‑resistant scanning). `re2` intentionally excluded for portability.
+  * `geoip`: `geoip2` + **MaxMind GeoLite2‑Country.mmdb** (put it in `/var/lib/GeoIP/` or pass `--geoip-db`).
+  * `detect`: `chardet` and `python-magic` (or `python-magic-bin` on Windows) for robust MIME/encoding detection.
+  * `images`: `Pillow` to safely read image metadata.
+  * `sys`: `psutil`, `distro`, `humanfriendly`.
+  * `net`: `psutil`, `ifaddr`, `dnspython`, `requests`, (`pyroute2` on Linux).
+  * **`codecs` (new)**: `zstandard` to read `.zst` logs in **sabbat-loganalyce** (other formats built-in: `.gz`, `.bz2`, `.xz`, `.lzma`).
+
+---
+
+## Commands
+
+### 📊 sabbat-loganalyce — Advanced Log Analyzer
+[Manual](docs/LOGANALYCE.md) · [In Spanish](docs/LOGANALYCE-ES.md)
+
+Reads plain logs or compressed logs by **magic bytes**: `.gz`, `.bz2`, `.xz`, `.lzma`, and `.zst` (if `zstandard` installed). Supports stdin, time filters, GeoIP, multi‑threaded stats, and hardened regex mode.
+
+**Highlights (recent)**
+- Compression auto‑detect by magic bytes (no need to rely on file extension).
+- Permission‑aware errors with i18n messages.
+- Early **large‑log prescan** + byte/line safety caps.
+- Hardened regex option (`--hardened-regex`) using the `regex` module.
+- Predictable exit codes: `0` ok · `1` runtime error · `2` security alerts or permission/unsupported codec errors.
+- Safe output confinement (CWD) unless `--unsafe-output`.
+- Stdin enable/disable with `--deny-stdin`.
+- Better JSON schema + GeoIP LRU cache.
+
+**Examples**
+```bash
+# Full analysis (columns)
+sabbat-loganalyce samples/access.log
+
+# Read compressed (auto-detect): gz/bz2/xz/lzma/zst*
+sabbat-loganalyce logs/access.log.gz
+sabbat-loganalyce logs/access.log.bz2
+sabbat-loganalyce logs/access.log.xz
+sabbat-loganalyce logs/access.log.lzma
+sabbat-loganalyce logs/access.log.zst       # requires: pip install zstandard
+
+# Pattern search (first 50, ordered)
+sabbat-loganalyce error.log -p "Timeout|Exception" -c 50
+
+# JSON output + hardened regex + time window
+sabbat-loganalyce app.log --json --hardened-regex --since "2025-09-01" --until "2025-09-30 23:59:59"
+```
+
+**Exit codes**
+- `0` success (no security alerts)
+- `2` security alerts detected (SQLi/XSS/traversal) **or** permission/unsupported codec errors
+- `1` other runtime errors
+
+---
+
+### 🕵️ sabbat-fileinspect — File Inspector
+[Manual](docs/FILEINSPECT.md) · [In Spanish](docs/FILEINSPECT-ES.md)
+
+Security‑focused, portable file inspector. Understands text, images and common binary types.
+
+```bash
+# Force Spanish + UTC + multiple hashes + JSON
+sabbat-fileinspect --lang es --utc --hash sha256,sha1 --json /etc/hosts
+```
+
+---
+
+### 🔧 sabbat-syscheck — System Auditor (read-only)
+[Manual](docs/SYSCHECK.md) · [In Spanish](docs/SYSCHECK-ES.md)
+
+Lightweight, non‑intrusive auditor inspired by tools like Lynis. Scans SSH configuration, permissions, users and cron.
+
+**Examples**
+```bash
+# Run all modules (default)
+sabbat-syscheck
+
+# JSON for dashboards/ingestion
+sabbat-syscheck --json > syscheck.json
+sabbat-syscheck --jsonl | jq .
+
+# Raw TSV (easy grepping)
+sabbat-syscheck --raw --no-group | column -t -s $'\t'
+```
+#### cronaudit subcommand (Cron + systemd timers)
+
+**What it does**
+- Unified listing of **cron jobs** (system/user) & **systemd timers**.
+- Detects **dangerous patterns**: `rm -rf /`, `curl|bash`, `wget|bash`, `chmod 777`, base64→shell, `nc -e`, reverse shells, cryptominers, `http://` fetch.
+- **Path/Resolution**: non-absolute first token, unresolved binary.
+- **Env vars**: `$VAR` / `${VAR}` without default `${VAR:-def}`.
+- **Privileges**: tasks likely needing root vs. running as root without indication.
+- **Orphans**: missing user, missing binary, missing `.service` behind a timer.
+- JSON output ready for SIEM ingestion.
+
+**Examples**
+```bash
+# Full audit + JSON saved
+sabbat-syscheck cronaudit --json --output audits/cron_$(date +%Y%m%d).json
+
+# Only suspicious commands (danger patterns or your regex)
+sabbat-syscheck cronaudit --check-dangerous --pattern 'rm -rf|wget|curl.*pipe'
+
+# Privilege focus (root/excess/mismatch)
+sabbat-syscheck cronaudit --check-privileges --user root
+
+# Only systemd timers
+sabbat-syscheck cronaudit --only timers
+```
+---
+
+### 🌐 sabbat-netinspect — Network & Connections Inspector
+[Manual](docs/NETINSPECT.md) · [In Spanish](docs/NETINSPECT-ES.md)
+See [Troubleshooting](docs/NETINSPECT-TROUBLESHOOTING-ES.md)
+
+Portable (psutil‑based) inspector for live network state: connections, listening ports, process correlation, optional GeoIP, local threat intel, port whitelist checks, snapshots & diffs.
+
+**Examples**
+```bash
+# JSON with GeoIP and connection cap
+sabbat-netinspect --json --geoip-db /var/lib/GeoIP/GeoLite2-Country.mmdb --max-conns 500
+
+# Threat‑intel CSV + whitelist check for listening ports
+sabbat-netinspect --check-threat-intel --ti-csv feeds/blacklist.csv                       --check-ports --whitelist /etc/allowed_ports.conf
+```
+---
+
+## Troubleshooting
+- `re2` not available: safe to ignore; `regex` provides hardened engine.
+- GeoIP DB missing: use `--geoip-db` or skip GeoIP features.
+- Colors in CI: export `NO_COLOR=1`.
+- **Compressed logs**: `.zst` requires `pip install zstandard`. Other formats work out‑of‑the‑box.
+- **Permissions**: if you get “permission denied”, try `sudo` or adjust ACLs on the log path.
+
+---
+
+## Development
+
+```bash
+pip install -e ".[dev]"
+ruff check .
+pytest -q
+```
+
+Project layout (simplified):
+```
+sabbat_tools/
+    ├── CHANGELOG.md
+    ├── LICENSE
+    ├── MANIFEST.in
+    ├── Makefile
+    ├── README-ES.md
+    ├── README.md
+    ├── docs
+    │   ├── FILEINSPECT-ES.md
+    │   ├── FILEINSPECT.md
+    │   ├── LOGANALYCE-ES.md
+    │   ├── LOGANALYCE.md
+    │   ├── NETINSPECT-ES.md
+    │   ├── NETINSPECT-TROUBLESHOOTING-ES.md
+    │   ├── NETINSPECT-TROUBLESHOOTING.md
+    │   ├── NETINSPECT.md
+    │   ├── SYSCHECK-ES.md
+    │   └── SYSCHECK.md
+    ├── pyproject.toml
+    ├── pytest.ini
+    ├── requirements-dev.txt
+    ├── requirements.txt
+    ├── sabbat_tools
+    │   ├── __init__.py
+    │   ├── audits
+    │   ├── fileinspect.py
+    │   ├── loganalyce.py
+    │   ├── netinspect.py
+    │   └── syscheck.py
+    ├── scripts
+    │   └── gen_toc.py
+    ├── tests
+    │   ├── conftest.py
+    │   ├── pysql
+    │   ├── test_fileinspect.py
+    │   ├── test_loganalyce.py
+    │   ├── test_netinspect.py
+    │   └── test_syscheck.py
+    └── tree.txt
+```
+
+---
+
+## Contributing
+PRs and issues welcome. Please keep the philosophy:
+- Safe‑by‑default, robust tests, clear UX.
+- New commands should come with tests and a README section.
+
+---
+
+## License
+MIT © Óscar Giménez Blasco
