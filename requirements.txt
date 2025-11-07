@@ -1,7 +1,7 @@
 # sabbat-tools — requirements.txt
 # Cubre: loganalyce, fileinspect, checksys, netinspect
 # Incluye extras: hardened, geoip, detect, images
-
+# Para analisis de medios (requiere ffprobe instalado) apt install ffmpeg
 # --- Núcleo / sistema ---
 psutil>=5.9.0
 
@@ -32,6 +32,16 @@ colorama>=0.4.6 ; platform_system == "Windows"
 # --- checksys (info del sistema amigable) ---
 distro>=1.9.0
 humanfriendly>=10.0
+
+# --- PDF --
+PyPDF2
+
+# --- VirusTotal ---
+requests
+
+# -- Analisis de seguridad en dependencias ---
+safety
+
 
 # --- netinspect (red portátil y pruebas) ---
 ifaddr>=0.2.0

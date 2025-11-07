@@ -1,4 +1,3 @@
-````markdown
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
@@ -12,7 +11,11 @@
     - [🕵️ sabbat-fileinspect — File Inspector](#-sabbat-fileinspect--file-inspector)
     - [🔧 sabbat-syscheck — System Auditor (read-only)](#-sabbat-syscheck--system-auditor-read-only)
       - [cronaudit subcommand (Cron + systemd timers)](#cronaudit-subcommand-cron--systemd-timers)
+<<<<<<< HEAD
     - [📝 sabbat-rawtext — Plain-Text Extractor (.docx/.odt/.ods/.txt)](#-sabbat-rawtext--plain-text-extractor-docxodtodstxt)
+=======
+    - [📝 sabbat-rawtext — Plain-Text Extractor (.docx/.odt/.ods/.txt)](#-sabbat-rawtext--plain-text-extractor-docxodtods-txt)
+>>>>>>> ad41e47 (README)
     - [🌐 sabbat-netinspect — Network & Connections Inspector](#-sabbat-netinspect--network--connections-inspector)
   - [Troubleshooting](#troubleshooting)
   - [Development](#development)
@@ -27,11 +30,11 @@
 ![Python Versions](https://img.shields.io/badge/python-3.8--3.12-informational)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](#license)
 
-**sabbat-tools** is a collection of production-ready command-line utilities for sysadmins, SREs and security engineers.
+**sabbat-tools** is a collection of production-ready command‑line utilities for sysadmins, SREs and security engineers.
 
 - Bilingual UX (auto/en/es) where applicable
-- Automation-friendly (clean JSON/JSONL & predictable exit codes)
-- Thoughtful hardening: input limits, ReDoS-safe regex paths, safe output confinement
+- Automation‑friendly (clean JSON/JSONL & predictable exit codes)
+- Thoughtful hardening: input limits, ReDoS‑safe regex paths, safe output confinement
 
 > **Español**: ¿Prefieres documentación en español? [🇪🇸 Español](README-ES.md)
 ---
@@ -44,7 +47,7 @@
   - [📊 sabbat-loganalyce — Advanced Log Analyzer](#-sabbat-loganalyce--advanced-log-analyzer)
   - [🕵️ sabbat-fileinspect — File Inspector](#-sabbat-fileinspect--file-inspector)
   - [🔧 sabbat-syscheck — System Auditor (read-only)](#-sabbat-syscheck--system-auditor-read-only)
-  - [📝 sabbat-rawtext — Plain-Text Extractor (.docx/.odt/.ods/.txt)](#-sabbat-rawtext--plaintext-extractor-docxodtodsTxt)
+  - [📝 sabbat-rawtext — Plain-Text Extractor (.docx/.odt/.ods/.txt)](#-sabbat-rawtext--plain-text-extractor-docxodtods-txt)
   - [🌐 sabbat-netinspect — Network & Connections Inspector](#-sabbat-netinspect--network--connections-inspector)
 - [Troubleshooting](#troubleshooting)
 - [Development](#development)
@@ -64,9 +67,9 @@ pip install -e ".[full]"
 
 # or user-wide isolated:
 # pipx install "sabbat-tools[full]"
-````
+```
 
-After install, you’ll have the `sabbat-loganalyce`, `sabbat-fileinspect`, `sabbat-syscheck`, **`sabbat-rawtext`**, and `sabbat-netinspect` commands on PATH.
+After install, you’ll have the `sabbat-loganalyce`, `sabbat-fileinspect`, `sabbat-syscheck`, **`sabbat-rawtext`** and `sabbat-netinspect` commands on PATH.
 
 ---
 
@@ -74,14 +77,13 @@ After install, you’ll have the `sabbat-loganalyce`, `sabbat-fileinspect`, `sab
 
 * Python ≥ 3.8
 * Optional extras:
-
-  * `hardened`: `regex` (ReDoS-resistant scanning). `re2` intentionally excluded for portability.
-  * `geoip`: `geoip2` + **MaxMind GeoLite2-Country.mmdb** (put it in `/var/lib/GeoIP/` or pass `--geoip-db`).
+  * `hardened`: `regex` (ReDoS‑resistant scanning). `re2` intentionally excluded for portability.
+  * `geoip`: `geoip2` + **MaxMind GeoLite2‑Country.mmdb** (put it in `/var/lib/GeoIP/` or pass `--geoip-db`).
   * `detect`: `chardet` and `python-magic` (or `python-magic-bin` on Windows) for robust MIME/encoding detection.
   * `images`: `Pillow` to safely read image metadata.
   * `sys`: `psutil`, `distro`, `humanfriendly`.
   * `net`: `psutil`, `ifaddr`, `dnspython`, `requests`, (`pyroute2` on Linux).
-  * **`codecs` (new)**: `zstandard` to read `.zst` logs in **sabbat-loganalyce** (other formats built-in: `.gz`, `.bz2`, `.xz`, `.lzma`).
+  * **`codecs` (new)**: `zstandard` to read `.zst` logs in **sabbat-loganalyce** (other formats built‑in: `.gz`, `.bz2`, `.xz`, `.lzma`).
   * **`text` (new)**: `python-docx`, `odfpy` for **sabbat-rawtext** (DOCX/ODT/ODS → TXT).
 
 ---
@@ -89,24 +91,21 @@ After install, you’ll have the `sabbat-loganalyce`, `sabbat-fileinspect`, `sab
 ## Commands
 
 ### 📊 sabbat-loganalyce — Advanced Log Analyzer
-
 [Manual](docs/LOGANALYCE.md) · [In Spanish](docs/LOGANALYCE-ES.md)
 
-Reads plain logs or compressed logs by **magic bytes**: `.gz`, `.bz2`, `.xz`, `.lzma`, and `.zst` (if `zstandard` installed). Supports stdin, time filters, GeoIP, multi-threaded stats, and hardened regex mode.
+Reads plain logs or compressed logs by **magic bytes**: `.gz`, `.bz2`, `.xz`, `.lzma`, and `.zst` (if `zstandard` installed). Supports stdin, time filters, GeoIP, multi‑threaded stats, and hardened regex mode.
 
 **Highlights (recent)**
-
-* Compression auto-detect by magic bytes (no need to rely on file extension).
-* Permission-aware errors with i18n messages.
-* Early **large-log prescan** + byte/line safety caps.
-* Hardened regex option (`--hardened-regex`) using the `regex` module.
-* Predictable exit codes: `0` ok · `1` runtime error · `2` security alerts or permission/unsupported codec errors.
-* Safe output confinement (CWD) unless `--unsafe-output`.
-* Stdin enable/disable with `--deny-stdin`.
-* Better JSON schema + GeoIP LRU cache.
+- Compression auto‑detect by magic bytes (no need to rely on file extension).
+- Permission‑aware errors with i18n messages.
+- Early **large‑log prescan** + byte/line safety caps.
+- Hardened regex option (`--hardened-regex`) using the `regex` module.
+- Predictable exit codes: `0` ok · `1` runtime error · `2` security alerts or permission/unsupported codec errors.
+- Safe output confinement (CWD) unless `--unsafe-output`.
+- Stdin enable/disable with `--deny-stdin`.
+- Better JSON schema + GeoIP LRU cache.
 
 **Examples**
-
 ```bash
 # Full analysis (columns)
 sabbat-loganalyce samples/access.log
@@ -126,18 +125,16 @@ sabbat-loganalyce app.log --json --hardened-regex --since "2025-09-01" --until "
 ```
 
 **Exit codes**
-
-* `0` success (no security alerts)
-* `2` security alerts detected (SQLi/XSS/traversal) **or** permission/unsupported codec errors
-* `1` other runtime errors
+- `0` success (no security alerts)
+- `2` security alerts detected (SQLi/XSS/traversal) **or** permission/unsupported codec errors
+- `1` other runtime errors
 
 ---
 
 ### 🕵️ sabbat-fileinspect — File Inspector
-
 [Manual](docs/FILEINSPECT.md) · [In Spanish](docs/FILEINSPECT-ES.md)
 
-Security-focused, portable file inspector. Understands text, images and common binary types.
+Security‑focused, portable file inspector. Understands text, images and common binary types.
 
 ```bash
 # Force Spanish + UTC + multiple hashes + JSON
@@ -147,13 +144,11 @@ sabbat-fileinspect --lang es --utc --hash sha256,sha1 --json /etc/hosts
 ---
 
 ### 🔧 sabbat-syscheck — System Auditor (read-only)
-
 [Manual](docs/SYSCHECK.md) · [In Spanish](docs/SYSCHECK-ES.md)
 
-Lightweight, non-intrusive auditor inspired by tools like Lynis. Scans SSH configuration, permissions, users and cron.
+Lightweight, non‑intrusive auditor inspired by tools like Lynis. Scans SSH configuration, permissions, users and cron.
 
 **Examples**
-
 ```bash
 # Run all modules (default)
 sabbat-syscheck
@@ -163,23 +158,20 @@ sabbat-syscheck --json > syscheck.json
 sabbat-syscheck --jsonl | jq .
 
 # Raw TSV (easy grepping)
-sabbat-syscheck --raw --no-group | column -t -s $'\t'
+sabbat-syscheck --raw --no-group | column -t -s $'	'
 ```
-
 #### cronaudit subcommand (Cron + systemd timers)
 
 **What it does**
-
-* Unified listing of **cron jobs** (system/user) & **systemd timers**.
-* Detects **dangerous patterns**: `rm -rf /`, `curl|bash`, `wget|bash`, `chmod 777`, base64→shell, `nc -e`, reverse shells, cryptominers, `http://` fetch.
-* **Path/Resolution**: non-absolute first token, unresolved binary.
-* **Env vars**: `$VAR` / `${VAR}` without default `${VAR:-def}`.
-* **Privileges**: tasks likely needing root vs. running as root without indication.
-* **Orphans**: missing user, missing binary, missing `.service` behind a timer.
-* JSON output ready for SIEM ingestion.
+- Unified listing of **cron jobs** (system/user) & **systemd timers**.
+- Detects **dangerous patterns**: `rm -rf /`, `curl|bash`, `wget|bash`, `chmod 777`, base64→shell, `nc -e`, reverse shells, cryptominers, `http://` fetch.
+- **Path/Resolution**: non-absolute first token, unresolved binary.
+- **Env vars**: `$VAR` / `${VAR}` without default `${VAR:-def}`.
+- **Privileges**: tasks likely needing root vs. running as root without indication.
+- **Orphans**: missing user, missing binary, missing `.service` behind a timer.
+- JSON output ready for SIEM ingestion.
 
 **Examples**
-
 ```bash
 # Full audit + JSON saved
 sabbat-syscheck cronaudit --json --output audits/cron_$(date +%Y%m%d).json
@@ -193,7 +185,6 @@ sabbat-syscheck cronaudit --check-privileges --user root
 # Only systemd timers
 sabbat-syscheck cronaudit --only timers
 ```
-
 ---
 
 ### 📝 sabbat-rawtext — Plain-Text Extractor (.docx/.odt/.ods/.txt)
@@ -203,7 +194,6 @@ Convert Office/OpenDocument files to clean **UTF-8 `.txt`** locally. Preserves r
 **Requires**: extra `text` (`python-docx`, `odfpy`) — included in `[full]`.
 
 **Examples**
-
 ```bash
 # Interactive (asks for a file path)
 sabbat-rawtext
@@ -216,39 +206,34 @@ sabbat-rawtext *.docx docs/*.odt "invoices 2025/*.ods"
 ```
 
 **Notes**
-
-* Supported: `.docx`, `.odt`, `.ods`, `.txt` (re-normalizes).
-* Legacy `.doc` → not supported (convert to `.docx` first).
-* Exit code: `0` all OK, `1` if any target failed (unsupported/read/save).
+- Supported: `.docx`, `.odt`, `.ods`, `.txt` (re-normalizes).  
+- Legacy `.doc` → not supported (convert to `.docx` first).
+- Exit code: `0` all OK, `1` if any target failed (unsupported/read/save).
 
 ---
 
 ### 🌐 sabbat-netinspect — Network & Connections Inspector
-
 [Manual](docs/NETINSPECT.md) · [In Spanish](docs/NETINSPECT-ES.md)
 See [Troubleshooting](docs/NETINSPECT-TROUBLESHOOTING-ES.md)
 
-Portable (psutil-based) inspector for live network state: connections, listening ports, process correlation, optional GeoIP, local threat intel, port whitelist checks, snapshots & diffs.
+Portable (psutil‑based) inspector for live network state: connections, listening ports, process correlation, optional GeoIP, local threat intel, port whitelist checks, snapshots & diffs.
 
 **Examples**
-
 ```bash
 # JSON with GeoIP and connection cap
 sabbat-netinspect --json --geoip-db /var/lib/GeoIP/GeoLite2-Country.mmdb --max-conns 500
 
-# Threat-intel CSV + whitelist check for listening ports
+# Threat‑intel CSV + whitelist check for listening ports
 sabbat-netinspect --check-threat-intel --ti-csv feeds/blacklist.csv                       --check-ports --whitelist /etc/allowed_ports.conf
 ```
-
 ---
 
 ## Troubleshooting
-
-* `re2` not available: safe to ignore; `regex` provides hardened engine.
-* GeoIP DB missing: use `--geoip-db` or skip GeoIP features.
-* Colors in CI: export `NO_COLOR=1`.
-* **Compressed logs**: `.zst` requires `pip install zstandard`. Other formats work out-of-the-box.
-* **Permissions**: if you get “permission denied”, try `sudo` or adjust ACLs on the log path.
+- `re2` not available: safe to ignore; `regex` provides hardened engine.
+- GeoIP DB missing: use `--geoip-db` or skip GeoIP features.
+- Colors in CI: export `NO_COLOR=1`.
+- **Compressed logs**: `.zst` requires `pip install zstandard`. Other formats work out‑of‑the‑box.
+- **Permissions**: if you get “permission denied”, try `sudo` or adjust ACLs on the log path.
 
 ---
 
@@ -261,7 +246,6 @@ pytest -q
 ```
 
 Project layout (simplified):
-
 ```
 sabbat_tools/
     ├── CHANGELOG.md
@@ -308,18 +292,12 @@ sabbat_tools/
 ---
 
 ## Contributing
-
 PRs and issues welcome. Please keep the philosophy:
-
-* Safe-by-default, robust tests, clear UX.
-* New commands should come with tests and a README section.
+- Safe‑by‑default, robust tests, clear UX.
+- New commands should come with tests and a README section.
 
 ---
 
 ## License
-
 MIT © Óscar Giménez Blasco
-
-```
-
 
