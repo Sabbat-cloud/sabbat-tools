@@ -1,19 +1,19 @@
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
-**Tabla de Contenidos**
+**Table of Contents**
 
 - [🧰 sabbat-tools — Caja de Herramientas CLI de Sistema y Seguridad](#-sabbat-tools--caja-de-herramientas-cli-de-sistema-y-seguridad)
   - [Tabla de contenidos](#tabla-de-contenidos)
-  - [Instalación](#instalación)
+  - [Instalación](#instalaci%C3%B3n)
   - [Requisitos y Extras](#requisitos-y-extras)
   - [Comandos](#comandos)
     - [📊 sabbat-loganalyce — Analizador Avanzado de Logs](#-sabbat-loganalyce--analizador-avanzado-de-logs)
     - [🕵️ sabbat-fileinspect — Inspector de Ficheros](#-sabbat-fileinspect--inspector-de-ficheros)
     - [🔧 sabbat-syscheck — Auditor del Sistema (solo lectura)](#-sabbat-syscheck--auditor-del-sistema-solo-lectura)
       - [Subcomando cronaudit (Cron + systemd timers)](#subcomando-cronaudit-cron--systemd-timers)
-    - [📝 sabbat-rawtext — Extractor de Texto Plano (.docx/.odt/.ods/.txt)](#-sabbat-rawtext--extractor-de-texto-plano-docxodtods-txt)
+    - [📝 sabbat-rawtext — Extractor de Texto Plano (.docx/.odt/.ods/.txt)](#-sabbat-rawtext--extractor-de-texto-plano-docxodtodstxt)
     - [🌐 sabbat-netinspect — Inspector de Red y Conexiones](#-sabbat-netinspect--inspector-de-red-y-conexiones)
-  - [Solución de problemas](#solución-de-problemas)
+  - [Solución de problemas](#soluci%C3%B3n-de-problemas)
   - [Desarrollo](#desarrollo)
   - [Contribuir](#contribuir)
   - [Licencia](#licencia)

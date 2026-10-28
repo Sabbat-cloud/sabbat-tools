@@ -11,7 +11,7 @@
     - [🕵️ sabbat-fileinspect — File Inspector](#-sabbat-fileinspect--file-inspector)
     - [🔧 sabbat-syscheck — System Auditor (read-only)](#-sabbat-syscheck--system-auditor-read-only)
       - [cronaudit subcommand (Cron + systemd timers)](#cronaudit-subcommand-cron--systemd-timers)
-    - [📝 sabbat-rawtext — Plain-Text Extractor (.docx/.odt/.ods/.txt)](#-sabbat-rawtext--plain-text-extractor-docxodtods-txt)
+    - [📝 sabbat-rawtext — Plain-Text Extractor (.docx/.odt/.ods/.txt)](#-sabbat-rawtext--plain-text-extractor-docxodtodstxt)
     - [🌐 sabbat-netinspect — Network & Connections Inspector](#-sabbat-netinspect--network--connections-inspector)
   - [Troubleshooting](#troubleshooting)
   - [Development](#development)
