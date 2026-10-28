@@ -14,6 +14,13 @@ pytest-cov>=5.0.0
 ruff>=0.6.9
 mypy>=1.11.0
 
+[epub]
+ebooklib>=0.18
+beautifulsoup4>=4.12.2
+
+[excel]
+openpyxl>=3.1.2
+
 [full]
 regex>=2024.4.16
 geoip2>=4.7.0
@@ -27,6 +34,14 @@ dnspython>=2.6.1
 requests>=2.32.0
 odfpy
 python-docx
+pdfminer.six>=20221105
+striprtf>=0.0.26
+beautifulsoup4>=4.12.2
+ebooklib>=0.18
+openpyxl>=3.1.2
+python-pptx>=0.6.23
+pytesseract>=0.3.10
+pdf2image>=1.17.0
 pytest>=8.3.0
 pytest-cov>=5.0.0
 ruff>=0.6.9
@@ -50,6 +65,9 @@ maxminddb>=2.6.2
 [hardened]
 regex>=2024.4.16
 
+[html]
+beautifulsoup4>=4.12.2
+
 [images]
 Pillow>=10.0.0
 
@@ -61,6 +79,33 @@ requests>=2.32.0
 
 [net:platform_system == "Linux"]
 pyroute2>=0.7.12
+
+[ocr]
+pytesseract>=0.3.10
+pdf2image>=1.17.0
+Pillow>=10.0.0
+
+[pdf]
+pdfminer.six>=20221105
+
+[pptx]
+python-pptx>=0.6.23
+
+[rawtext]
+python-docx
+odfpy
+pdfminer.six>=20221105
+striprtf>=0.0.26
+beautifulsoup4>=4.12.2
+ebooklib>=0.18
+openpyxl>=3.1.2
+python-pptx>=0.6.23
+pytesseract>=0.3.10
+pdf2image>=1.17.0
+Pillow>=10.0.0
+
+[rtf]
+striprtf>=0.0.26
 
 [sys]
 psutil>=5.9.0

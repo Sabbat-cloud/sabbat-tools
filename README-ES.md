@@ -130,11 +130,25 @@ sabbat-loganalyce app.log --json --hardened-regex --since "2025-09-01" --until "
 ### 🕵️ sabbat-fileinspect — Inspector de Ficheros
 [Manual](docs/FILEINSPECT-ES.md) · [In English](docs/FILEINSPECT.md)
 
-Inspector portable con foco en seguridad. Entiende texto, imágenes y binarios comunes.
+Inspector portable con foco en seguridad y peritaje forense para texto, imágenes, comprimidos, documentos y binarios.
 
+**Novedades (reciente)**
+- **Motor nativo de *magic bytes* y detección de *spoofing***: identifica `ELF`, `PE`, `Mach-O`, `PDF`, `ZIP/OOXML`, comprimidos, imágenes y texto plano sin depender de librerías externas, alertando ante discrepancias extensión/contenido (p. ej. un ejecutable PE camuflado como `.jpg`) y dobles extensiones sospechosas (`factura.pdf.exe`).
+- **Entropía de Shannon y cabeceras binarias nativas**: calcula la entropía del fichero (`0.0–8.0` bits/byte) para detectar binarios empaquetados o cifrados, y analiza cabeceras **PE** (arquitectura, `EXE`/`DLL`, fecha de compilación UTC, secciones de *packers* como `UPX0`) y **ELF** en Python puro.
+- **Escaneo ampliado de secretos y heurísticas de malware**: detecta contraseñas, API keys, tokens **JWT**, **Slack**, **Google Cloud**, **Stripe**, **AWS**, **URIs de bases de datos con credenciales**, tarjetas (Luhn), *cradles* de PowerShell y *reverse shells*.
+- **Endurecimiento en comprimidos y documentos**: detecta **Zip Slip** (*path traversal*) y **Zip Bombs** en `.zip`/`.tar*`, así como etiquetas activas peligrosas en PDF (`/JavaScript`, `/OpenAction`, `/Launch`, `/EmbeddedFiles`) y macros VBA en Office (`vbaProject.bin`).
+- **Listo para CI/CD y automatización**: `--json`, `--jsonl`, `-o / --output`, informes HTML/PDF protegidos contra XSS, caché de hashes en SQLite y `--fail-on-alert` (`--strict`) con código de salida `2` si hay hallazgos.
+
+**Ejemplos**
 ```bash
 # Forzar español + UTC + múltiples hashes + JSON
 sabbat-fileinspect --lang es --utc --hash sha256,sha1 --json /etc/hosts
+
+# Escaneo recursivo de secretos y heurísticas a JSONL (sale con código 2 si hay alertas)
+sabbat-fileinspect -r . --include-pattern "*.py,*.sh,*.env" --malware-heuristics --fail-on-alert --jsonl -o scan.jsonl
+
+# Análisis profundo de archivos comprimidos (detecta Zip Slip, Zip Bombs y secretos internos)
+sabbat-fileinspect backup.zip --archives deep --malware-heuristics --json
 ```
 
 ---
@@ -212,15 +226,26 @@ sabbat-rawtext *.docx docs/*.odt "facturas 2025/*.ods"
 [Manual](docs/NETINSPECT-ES.md) · [In English](docs/NETINSPECT.md)  
 Ver [Solución de problemas](docs/NETINSPECT-TROUBLESHOOTING-ES.md)
 
-Inspector portable (basado en psutil) del estado de red en vivo: conexiones, puertos en escucha, correlación de procesos, GeoIP opcional, *threat intel* local, lista blanca de puertos, snapshots y diffs.
+Inspector portable (basado en `psutil`) del estado de red en vivo: conexiones, puertos en escucha, correlación de procesos y unidades `systemd`, GeoIP opcional, *threat intel* local, lista blanca de puertos, snapshots y diffs.
+
+**Novedades (reciente)**
+- **Filtrado avanzado**: filtra por `--proto {tcp,udp,all}`, `--state`, `--scope {all,own}`, `--pid`, `--user`, `--proc <nombre>`, `--laddr <IP/CIDR>`, `--raddr <IP/CIDR>`, `--lport`, `--rport`, `--only-public` y `--only-suspicious`.
+- **Threat Intel con soporte CIDR y Whitelist por rangos**: el CSV de Threat Intel (`--ti-csv`) soporta tanto IPs exactas como subredes CIDR IPv4/IPv6 (`198.51.100.0/24`); la lista blanca de puertos admite puertos individuales (`tcp/22`), rangos (`tcp/8000-8100`) y comodines (`tcp/*`).
+- **Heurísticas de seguridad**: detecta servicios críticos expuestos en `0.0.0.0`/`::` (`exposed_sensitive_port` para Redis, MongoDB, Docker API, MySQL, PostgreSQL, RDP, SMB, etc.), puertos de C2/minería (`c2_like_port`), procesos ejecutándose desde `/tmp` o `/dev/shm` (`proc_suspicious_path`) y puertos fuera de whitelist (`not_in_whitelist`).
+- **Enriquecimiento concurrente y rápido**: resolución inversa DNS (`--rdns`) en paralelo con caché y límite global `--deadline-sec`, caché de GeoIP y comparativas detalladas entre snapshots (`--snapshot`, `--diff`).
 
 **Ejemplos**
 ```bash
 # JSON con GeoIP y límite de conexiones
 sabbat-netinspect --json --geoip-db /var/lib/GeoIP/GeoLite2-Country.mmdb --max-conns 500
 
-# CSV de threat-intel + comprobación de puertos permitidos
-sabbat-netinspect --check-threat-intel --ti-csv feeds/blacklist.csv                       --check-ports --whitelist /etc/allowed_ports.conf
+# Solo conexiones establecidas hacia IPs públicas o solo conexiones sospechosas
+sabbat-netinspect --only-public --state established
+sabbat-netinspect --only-suspicious
+
+# CSV de threat-intel (IPs + CIDR) + comprobación de puertos permitidos
+sabbat-netinspect --check-threat-intel --ti-csv feeds/blacklist.csv \
+                  --check-ports --whitelist /etc/allowed_ports.conf
 ```
 ---
 

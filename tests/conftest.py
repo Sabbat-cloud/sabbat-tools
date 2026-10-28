@@ -11,6 +11,7 @@ def _stable_env(monkeypatch):
     monkeypatch.setenv("NO_COLOR", "1")
     monkeypatch.setenv("LANG", "C")
     monkeypatch.setenv("LC_ALL", "C")
+    monkeypatch.setenv("PYTHONIOENCODING", "utf-8")
     yield
 
 @pytest.fixture
@@ -26,6 +27,8 @@ def run_cli():
             cmd,
             input=stdin,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             capture_output=True,
             timeout=timeout,
             check=False,

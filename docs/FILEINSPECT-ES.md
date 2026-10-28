@@ -13,6 +13,9 @@ sabbat-fileinspect [OPCIONES] <ruta...>
 
   - `--lang {auto,en,es}`: Idioma de la interfaz.
   - `--json`: Salida JSON (estable para automatización).
+  - `--jsonl`: Salida JSON Lines (un objeto JSON por línea, ideal con `-r`).
+  - `-o, --output <FICHERO>`: Guarda la salida JSON/JSONL o el informe HTML/PDF en la ruta indicada.
+  - `--fail-on-alert` (`--strict`): Devuelve código de salida `2` si se detectan alertas de seguridad, coincidencias YARA o diferencias de hash.
   - `-r, --recursive`: Analiza directorios recursivamente.
   - `--hash ALGO,ALGO`: Hashes a calcular (ej. `sha256,sha1,md5`).
   - `--no-hash`: Desactiva el cálculo de hashes (más rápido).
@@ -23,11 +26,17 @@ sabbat-fileinspect [OPCIONES] <ruta...>
 
 ## Opciones Avanzadas (Seguridad y Análisis)
 
-  - `--malware-heuristics`: Activa heurísticas de malware para scripts (busca `eval`, `base64`, `subprocess`, etc.).
+  - **Análisis Forense Integrado (Automático)**:
+    - Identificación nativa por *magic bytes* (`ELF`, `PE`, `Mach-O`, `PDF`, `ZIP/OOXML`, imágenes, comprimidos y texto plano).
+    - Detección de *spoofing* de extensión (discrepancia extensión/contenido) y dobles extensiones sospechosas (`factura.pdf.exe`).
+    - Entropía de Shannon por fichero (`entropia`, `0.0–8.0` bits/byte) y alerta de binarios empaquetados/cifrados ($\ge 7.2$).
+    - Inspección nativa de cabeceras **PE** (`x86`/`x86_64`/`ARM64`, `EXE`/`DLL`, fecha de compilación UTC, secciones `UPX`/empaquetadores) y **ELF**.
+    - Escaneo de etiquetas activas peligrosas en PDF (`/JavaScript`, `/JS`, `/OpenAction`, `/Launch`, `/EmbeddedFiles`) y macros VBA en Office (`vbaProject.bin`).
+  - `--malware-heuristics`: Activa heurísticas de malware para scripts (busca `eval`, `base64`, `subprocess`, *cradles* de PowerShell, *reverse shells* `/dev/tcp/`, `nc -e`, etc.).
   - `--yara-rules <RUTA_O_DIR>`: Escanea el archivo con reglas YARA.
   - `--vt-api-key <CLAVE>`: Comprueba el hash SHA256 con VirusTotal (o usa la variable `VT_API_KEY`).
-  - `--archives {off,list,deep}`: Controla el análisis de archivos comprimidos (zip/tar).
-  - `--max-secret-bytes N`: Límite de bytes para el escaneo de secretos (default: 1MB).
+  - `--archives {off,list,deep}`: Controla el análisis de archivos comprimidos (zip/tar), incluyendo detección de **Zip Slip** (*path traversal*) y **Zip Bombs**.
+  - `--max-secret-bytes N`: Límite de bytes para el escaneo de secretos (default: 1MB). Detecta contraseñas, API keys, JWT, Slack, GCP, Stripe, claves AWS, URIs de bases de datos con credenciales y tarjetas (Luhn).
   - `--max-secret-lines N`: Límite de líneas para el escaneo de secretos (default: 800).
   - `--plugins-dir <DIR>`: Carga plugins personalizados desde un directorio.
 

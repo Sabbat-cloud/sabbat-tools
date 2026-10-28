@@ -11,11 +11,7 @@
     - [🕵️ sabbat-fileinspect — File Inspector](#-sabbat-fileinspect--file-inspector)
     - [🔧 sabbat-syscheck — System Auditor (read-only)](#-sabbat-syscheck--system-auditor-read-only)
       - [cronaudit subcommand (Cron + systemd timers)](#cronaudit-subcommand-cron--systemd-timers)
-<<<<<<< HEAD
-    - [📝 sabbat-rawtext — Plain-Text Extractor (.docx/.odt/.ods/.txt)](#-sabbat-rawtext--plain-text-extractor-docxodtodstxt)
-=======
     - [📝 sabbat-rawtext — Plain-Text Extractor (.docx/.odt/.ods/.txt)](#-sabbat-rawtext--plain-text-extractor-docxodtods-txt)
->>>>>>> ad41e47 (README)
     - [🌐 sabbat-netinspect — Network & Connections Inspector](#-sabbat-netinspect--network--connections-inspector)
   - [Troubleshooting](#troubleshooting)
   - [Development](#development)
@@ -134,11 +130,25 @@ sabbat-loganalyce app.log --json --hardened-regex --since "2025-09-01" --until "
 ### 🕵️ sabbat-fileinspect — File Inspector
 [Manual](docs/FILEINSPECT.md) · [In Spanish](docs/FILEINSPECT-ES.md)
 
-Security‑focused, portable file inspector. Understands text, images and common binary types.
+Security‑focused, portable file inspector for text, images, archives, documents, and binaries.
 
+**Highlights (recent)**
+- **Native magic-byte engine & extension spoofing detection**: identifies `ELF`, `PE`, `Mach-O`, `PDF`, `ZIP/OOXML`, compressed streams, images, and plain text without external dependencies, flagging extension/content mismatches (e.g., a PE executable disguised as `.jpg`) and suspicious double extensions (`invoice.pdf.exe`).
+- **Shannon entropy & native binary headers**: computes file-level entropy (`0.0–8.0` bits/byte) to detect packed/encrypted payloads, and parses **PE** (architecture, `EXE`/`DLL`, build timestamp, packer sections like `UPX0`) and **ELF** headers in pure Python.
+- **Expanded secret & malware heuristics**: detects plaintext passwords, API keys, **JWT**, **Slack**, **Google Cloud**, **Stripe**, **AWS** keys, **database connection URIs** with credentials, credit cards (Luhn), PowerShell cradles, and reverse shells.
+- **Archive & document hardening**: detects **Zip Slip** (path traversal) and **Zip Bombs** in `.zip`/`.tar*`, plus risky active PDF tags (`/JavaScript`, `/OpenAction`, `/Launch`, `/EmbeddedFiles`) and Office VBA macros (`vbaProject.bin`).
+- **Automation & CI-ready**: `--json`, `--jsonl`, `-o / --output`, XSS-safe HTML/PDF reports, SQLite hash cache, and `--fail-on-alert` (`--strict`) returning exit code `2` on findings.
+
+**Examples**
 ```bash
 # Force Spanish + UTC + multiple hashes + JSON
 sabbat-fileinspect --lang es --utc --hash sha256,sha1 --json /etc/hosts
+
+# Recursive scan for secrets & malware heuristics into JSONL (exit 2 if alerts found)
+sabbat-fileinspect -r . --include-pattern "*.py,*.sh,*.env" --malware-heuristics --fail-on-alert --jsonl -o scan.jsonl
+
+# Deep archive inspection (detects Zip Slip, Zip Bombs, and embedded secrets)
+sabbat-fileinspect backup.zip --archives deep --malware-heuristics --json
 ```
 
 ---
@@ -214,17 +224,28 @@ sabbat-rawtext *.docx docs/*.odt "invoices 2025/*.ods"
 
 ### 🌐 sabbat-netinspect — Network & Connections Inspector
 [Manual](docs/NETINSPECT.md) · [In Spanish](docs/NETINSPECT-ES.md)
-See [Troubleshooting](docs/NETINSPECT-TROUBLESHOOTING-ES.md)
+See [Troubleshooting](docs/NETINSPECT-TROUBLESHOOTING.md)
 
-Portable (psutil‑based) inspector for live network state: connections, listening ports, process correlation, optional GeoIP, local threat intel, port whitelist checks, snapshots & diffs.
+Portable (`psutil`‑based) inspector for live network state: connections, listening ports, process and `systemd` unit correlation, optional GeoIP, local threat intel, port whitelist checks, snapshots & diffs.
+
+**Highlights (recent)**
+- **Granular filtering**: filter by `--proto {tcp,udp,all}`, `--state`, `--scope {all,own}`, `--pid`, `--user`, `--proc <name>`, `--laddr <IP/CIDR>`, `--raddr <IP/CIDR>`, `--lport`, `--rport`, `--only-public`, and `--only-suspicious`.
+- **CIDR Threat Intel & Port Range Whitelists**: local Threat Intel CSV (`--ti-csv`) matches both exact IPs and IPv4/IPv6 CIDR subnets (`198.51.100.0/24`); port whitelists support single ports (`tcp/22`), ranges (`tcp/8000-8100`), and wildcards (`tcp/*`).
+- **Security heuristics**: flags exposed sensitive services on `0.0.0.0`/`::` (`exposed_sensitive_port` for Redis, MongoDB, Docker API, MySQL, PostgreSQL, RDP, SMB, etc.), C2/miner ports (`c2_like_port`), processes running from `/tmp` or `/dev/shm` (`proc_suspicious_path`), and unauthorized listening ports (`not_in_whitelist`).
+- **Fast concurrent enrichment**: parallel, cached reverse DNS (`--rdns`) bounded by `--deadline-sec`, cached GeoIP lookups, and detailed human/JSON snapshot diffs (`--snapshot`, `--diff`).
 
 **Examples**
 ```bash
 # JSON with GeoIP and connection cap
 sabbat-netinspect --json --geoip-db /var/lib/GeoIP/GeoLite2-Country.mmdb --max-conns 500
 
-# Threat‑intel CSV + whitelist check for listening ports
-sabbat-netinspect --check-threat-intel --ti-csv feeds/blacklist.csv                       --check-ports --whitelist /etc/allowed_ports.conf
+# Only public established connections or suspicious findings
+sabbat-netinspect --only-public --state established
+sabbat-netinspect --only-suspicious
+
+# Threat‑intel CSV (exact IPs + CIDR) + whitelist check for listening ports
+sabbat-netinspect --check-threat-intel --ti-csv feeds/blacklist.csv \
+                  --check-ports --whitelist /etc/allowed_ports.conf
 ```
 ---
 

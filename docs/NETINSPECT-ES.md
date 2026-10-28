@@ -35,30 +35,39 @@ sabbat-netinspect --json | jq '.summary, .findings[:3]'
 ## Filtros y alcance
 - Protocolo: `--proto {tcp,udp,all}`
 - Estado: `--state {listening,established,all}`
-- Alcance: `--scope {own,all}` (nota: `all` puede requerir root)
-- PID / Usuario: `--pid`, `--user`
+- Alcance: `--scope {own,all}` (nota: `all` puede requerir root; `own` filtra por el usuario actual)
+- PID / Usuario / Proceso: `--pid`, `--user`, `--proc <subcadena>`
+- Direcciones IP / CIDR: `--laddr 127.0.0.1,10.0.0.0/8`, `--raddr 203.0.113.0/24`
 - Puertos: `--lport 80,443,8000-8100`, `--rport 53,123`
+- Filtros rápidos de seguridad: `--only-public` (solo IPs remotas públicas/globales), `--only-suspicious` (solo conexiones con alertas)
 - Incluir UNIX sockets: `--include-unix`
 
 ## Enriquecido
-- Reverse DNS: `--rdns` (con `--deadline-sec`)
-- GeoIP: `--geoip-db /ruta/GeoLite2-Country.mmdb` (requiere `geoip2`)
+- Reverse DNS: `--rdns` (resolución concurrente en lote con caché y presupuesto `--deadline-sec`)
+- GeoIP: `--geoip-db /ruta/GeoLite2-Country.mmdb` (requiere `geoip2`, con caché por IP)
+- Correlación con unidades `systemd` en Linux mediante `/proc/<pid>/cgroup`
 
-## Políticas
+## Políticas y heurísticas de seguridad
+- Flags de seguridad integradas:
+  - `exposed_sensitive_port`: servicio sensible (Redis, MongoDB, Docker API, MySQL, PostgreSQL, RDP, SMB, Telnet, FTP, etc.) escuchando en `0.0.0.0` o `::`
+  - `exposed_high_port`: puerto alto ($\ge 1024$) escuchando en `0.0.0.0` o `::`
+  - `c2_like_port`: conexión establecida hacia puertos típicos de C2, IRC, *cryptominers* o Tor
+  - `proc_suspicious_path`: proceso ejecutándose desde `/tmp`, `/var/tmp`, `/dev/shm` o `Temp`
 - Whitelist de puertos en escucha:
 ```bash
 sabbat-netinspect --check-ports --whitelist /etc/allowed_ports.conf
 ```
-Formato whitelist:
+Formato whitelist (admite puertos individuales, rangos y comodines):
 ```
 # comentarios
 tcp/22
 tcp/443
+tcp/8000-8010
 udp/53
 tcp/*
 ```
 
-- TI local (CSV):
+- TI local (CSV con soporte de IPs exactas y subredes CIDR IPv4/IPv6):
 ```bash
 sabbat-netinspect --check-threat-intel --ti-csv feeds/blacklist.csv --json
 ```
@@ -66,6 +75,7 @@ CSV mínimo:
 ```csv
 ip,source,confidence
 203.0.113.50,local,95
+198.51.100.0/24,spamhaus_drop,90
 ```
 
 ## Snapshots y diffs

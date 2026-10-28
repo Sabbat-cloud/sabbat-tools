@@ -13,6 +13,9 @@ sabbat-fileinspect [OPTIONS] <path...>
 
   - `--lang {auto,en,es}`: Interface language.
   - `--json`: JSON output (stable for automation).
+  - `--jsonl`: JSON Lines output (one JSON object per line, ideal for `-r`).
+  - `-o, --output <FILE>`: Save JSON/JSONL or exported HTML/PDF report to a file.
+  - `--fail-on-alert` (`--strict`): Exit with code `2` if security alerts, YARA matches, or hash mismatches are found.
   - `-r, --recursive`: Recursively analyzes directories.
   - `--hash ALGO,ALGO`: Hashes to compute (e.g., `sha256,sha1,md5`).
   - `--no-hash`: Disables hash calculation (faster).
@@ -23,11 +26,17 @@ sabbat-fileinspect [OPTIONS] <path...>
 
 ## Advanced Options (Security and Analysis)
 
-  - `--malware-heuristics`: Activates malware heuristics for scripts (searches for `eval`, `base64`, `subprocess`, etc.).
+  - **Built-in Forensics (Automatic)**:
+    - Native magic-byte identification (`ELF`, `PE`, `Mach-O`, `PDF`, `ZIP/OOXML`, images, archives, plain text).
+    - Extension/content spoofing detection (`ext_spoofing`) and suspicious double extensions (`invoice.pdf.exe`).
+    - File-level Shannon entropy (`entropia`, `0.0–8.0` bits/byte) and high-entropy packed binary alerts ($\ge 7.2$).
+    - Pure-Python **PE** (`x86`/`x86_64`/`ARM64`, `EXE`/`DLL`, compile timestamp, `UPX`/packer sections) and **ELF** header inspection.
+    - Active PDF tag scanning (`/JavaScript`, `/JS`, `/OpenAction`, `/Launch`, `/EmbeddedFiles`) and Office macro (`vbaProject.bin`) detection.
+  - `--malware-heuristics`: Activates malware heuristics for scripts (searches for `eval`, `base64`, `subprocess`, PowerShell cradles, `/dev/tcp/` reverse shells, `nc -e`, etc.).
   - `--yara-rules <PATH_OR_DIR>`: Scans the file with YARA rules.
   - `--vt-api-key <KEY>`: Checks the SHA256 hash with VirusTotal (or uses the `VT_API_KEY` variable).
-  - `--archives {off,list,deep}`: Controls the analysis of compressed files (zip/tar).
-  - `--max-secret-bytes N`: Byte limit for secret scanning (default: 1MB).
+  - `--archives {off,list,deep}`: Controls the analysis of compressed files (zip/tar), including **Zip Slip** (path traversal) and **Zip Bomb** detection.
+  - `--max-secret-bytes N`: Byte limit for secret scanning (default: 1MB). Detects passwords, API keys, JWT, Slack, GCP, Stripe, AWS keys, DB URIs with credentials, and credit cards (Luhn).
   - `--max-secret-lines N`: Line limit for secret scanning (default: 800).
   - `--plugins-dir <DIR>`: Loads custom plugins from a directory.
 

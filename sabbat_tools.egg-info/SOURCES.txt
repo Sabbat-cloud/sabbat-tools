@@ -8,6 +8,7 @@ sabbat_tools/fileinspect.py
 sabbat_tools/loganalyce.py
 sabbat_tools/netinspect.py
 sabbat_tools/rawtext.py
+sabbat_tools/rawtextv2.py
 sabbat_tools/syscheck.py
 sabbat_tools.egg-info/PKG-INFO
 sabbat_tools.egg-info/SOURCES.txt

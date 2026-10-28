@@ -7,17 +7,20 @@ versión corregida (safe_format) para evitar KeyError en textos con llaves liter
 Incluye:
 - i18n (es/en) con autodetección
 - Modo fichero único o recursivo (-r) con include/exclude patterns y --max-depth
-- Detección MIME robusta (python-magic > file(1) > mimetypes)
-- Symlinks claros (realpath, destino, rotos)
+- Detección MIME robusta (python-magic > file(1) > magic bytes nativos > mimetypes)
+- Detección de spoofing de extensión y doble extensión maliciosa
+- Entropía de Shannon a nivel de fichero y detección de empaquetado (UPX/alta entropía)
+- Análisis nativo de cabeceras PE (Windows) y ELF (Linux) sin dependencias externas
+- Symlinks claros (realpath, destino, rotos sin crash)
 - Hashes con caché SQLite (sha256 por defecto; seleccionables) + historial SQLite
 - Comparación de archivos: --compare <FILE2>
-- Secret scanning (patrones + entropía + Luhn para tarjetas)
+- Secret scanning (patrones + JWT/Slack/DB URI/GCP + entropía + Luhn para tarjetas)
 - Heurística de malware en scripts (opcional --malware-heuristics)
-- Imágenes/EXIF (Pillow), Office/PDF (PyPDF2), multimedia (pymediainfo o ffprobe)
-- Comprimidos: --archives off|list|deep (zip/tar.*)
+- Imágenes/EXIF (Pillow), Office/PDF (pypdf/PyPDF2 + escaneo de tags activos /JS, /Launch), multimedia (pymediainfo o ffprobe)
+- Comprimidos: --archives off|list|deep (zip/tar.*) con detección de Zip Slip y Zip Bomb
 - Dependencias: safety (Python) / npm audit (Node)
 - VirusTotal por hash: --vt-api-key o VT_API_KEY
-- Export: --export html|pdf y --template (usa safe_format); compatibilidad --html FILE
+- Export: --export html|pdf, --output FILE, --jsonl y --template (usa safe_format); compatibilidad --html FILE
 - Plugins: --plugins-dir (hook run(path: Path, info: dict) -> dict)
 - YARA: --yara-rules rutas (si hay yara-python)
 - Verbosidad: -v/-vv/-vvv y --debug
@@ -26,26 +29,32 @@ Incluye:
 from __future__ import annotations
 
 import argparse
-import os
-import sys
-import subprocess
-import stat
-import math
-import hashlib
-import json
-import re
-import mimetypes
-import logging
-import sqlite3
-import time
 import fnmatch
-from pathlib import Path
+import hashlib
+import html as _html
+import json
+import logging
+import math
+import mimetypes
+import os
+import re
+import sqlite3
+import stat
+import struct
+import subprocess
+import sys
+import tarfile
+import time
+import zipfile
+from contextlib import closing
 from datetime import datetime, timezone
-from typing import Optional, Dict, List, Tuple, Iterable, Any
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 # =================== Dependencias opcionales ===================
 try:
-    import pwd, grp  # Unix
+    import grp
+    import pwd  # Unix
     HAVE_PWD_GRP = True
 except Exception:
     HAVE_PWD_GRP = False
@@ -57,7 +66,7 @@ except Exception:
     CHARDET_AVAILABLE = False
 
 try:
-    from PIL import Image, ExifTags
+    from PIL import ExifTags, Image
     PILLOW_AVAILABLE = True
 except Exception:
     PILLOW_AVAILABLE = False
@@ -86,6 +95,19 @@ try:
 except Exception:
     YARA_AVAILABLE = False
 
+
+def _ensure_utf8_stdio() -> None:
+    """Evita UnicodeEncodeError en consolas/pipes Windows (cp1252) al imprimir emojis."""
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            try:
+                enc = getattr(stream, "encoding", None) or ""
+                if enc.lower().replace("-", "") != "utf8":
+                    stream.reconfigure(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
+
+
 # =================== i18n ===================
 def detect_console_lang() -> str:
     for var in ("LC_ALL", "LC_MESSAGES", "LANGUAGE", "LANG"):
@@ -100,10 +122,12 @@ def detect_console_lang() -> str:
             return "en"
     return "en"
 
+
 def choose_lang(cli_lang: Optional[str]) -> str:
     if not cli_lang or cli_lang == "auto":
         return detect_console_lang()
     return cli_lang if cli_lang in ("en", "es") else "en"
+
 
 I18N = {
     "en": {
@@ -132,6 +156,9 @@ Other:
   --nofollow       Do not follow symbolic links
   --utc            Timestamps in UTC (ISO 8601)
   --json           JSON output (array if multiple results)
+  --jsonl          JSON Lines output (one JSON object per line)
+  -o, --output F   Write output/report to file F
+  --fail-on-alert  Exit with code 2 if security alerts or diffs are found
   --lang L         Interface language: auto (default), en, es
   -v, --verbose    Verbose logs (-v/-vv/-vvv)
   --debug          Debug logs (same as -vvv)
@@ -152,6 +179,7 @@ Advanced:
 """,
         "file_not_found": "Path '{f}' does not exist.",
         "broken_symlink": "Broken symlink",
+        "broken_symlink_alert": "⚠️ Broken symbolic link",
         "error": "Error",
         "warning": "Warning",
         "file": "File:",
@@ -159,6 +187,7 @@ Advanced:
         "symlink": "Symlink:",
         "mime": "MIME type:",
         "size": "Size:",
+        "entropy": "Entropy:",
         "perms": "Permissions:",
         "owner": "Owner:",
         "modified": "Modified:",
@@ -183,6 +212,13 @@ Advanced:
         "suid": "⚠️ SUID bit — high risk if not required",
         "sgid": "⚠️ SGID bit — potential risk",
         "sensitive_name": "🔍 Potentially sensitive name",
+        "double_ext": "🚨 Suspicious double extension ({name})",
+        "ext_spoofing": "🚨 Extension/content mismatch (ext={ext}, actual={actual})",
+        "high_entropy_exec": "⚠️ High entropy ({ent:.2f}/8.0) — possible packed or encrypted binary",
+        "packer_detected": "⚠️ Packer/obfuscator section detected ({sec})",
+        "pdf_active_content": "⚠️ PDF contains active/suspicious elements ({tags})",
+        "archive_zip_slip": "🚨 Archive path traversal detected (Zip Slip: {entry})",
+        "archive_zip_bomb": "🚨 Extreme compression ratio ({ratio:.0f}:1) — possible Zip Bomb",
         "secret_password": "Password in plaintext",
         "secret_api_key": "API key",
         "secret_secret": "Generic secret",
@@ -190,6 +226,11 @@ Advanced:
         "secret_aws_ak": "AWS Access Key",
         "secret_aws_sk": "AWS Secret Key",
         "secret_github": "GitHub token",
+        "secret_jwt": "JWT token",
+        "secret_slack": "Slack token",
+        "secret_gcp_key": "Google Cloud API key",
+        "secret_stripe": "Stripe API key",
+        "secret_db_uri": "Database connection URI with credentials",
         "secret_card": "Possible credit card number",
         "secret_b64_entropy": "High-entropy base64 string (possible secret)",
         "secret_hex_entropy": "High-entropy hex string (possible secret)",
@@ -247,6 +288,9 @@ Otras:
   --nofollow       No seguir enlaces simbólicos
   --utc            Fechas en UTC (ISO 8601)
   --json           Salida JSON (array si hay múltiples resultados)
+  --jsonl          Salida JSON Lines (un objeto JSON por línea)
+  -o, --output F   Guardar salida/informe en el fichero F
+  --fail-on-alert  Salir con código 2 si hay alertas de seguridad o diferencias
   --lang L         Idioma: auto (defecto), en, es
   -v, --verbose    Logs verbosos (-v/-vv/-vvv)
   --debug          Logs debug (equivale a -vvv)
@@ -267,6 +311,7 @@ Avanzadas:
 """,
         "file_not_found": "La ruta '{f}' no existe.",
         "broken_symlink": "Enlace simbólico roto",
+        "broken_symlink_alert": "⚠️ Enlace simbólico roto",
         "error": "Error",
         "warning": "Aviso",
         "file": "Fichero:",
@@ -274,6 +319,7 @@ Avanzadas:
         "symlink": "Enlace:",
         "mime": "Tipo MIME:",
         "size": "Tamaño:",
+        "entropy": "Entropía:",
         "perms": "Permisos:",
         "owner": "Propietario:",
         "modified": "Modificado:",
@@ -298,6 +344,13 @@ Avanzadas:
         "suid": "⚠️ Bit SUID — riesgo elevado si no es necesario",
         "sgid": "⚠️ Bit SGID — riesgo potencial",
         "sensitive_name": "🔍 Nombre potencialmente sensible",
+        "double_ext": "🚨 Doble extensión sospechosa ({name})",
+        "ext_spoofing": "🚨 Discrepancia extensión/contenido (ext={ext}, real={actual})",
+        "high_entropy_exec": "⚠️ Alta entropía ({ent:.2f}/8.0) — posible binario empaquetado o cifrado",
+        "packer_detected": "⚠️ Sección de empaquetador/ofuscador detectada ({sec})",
+        "pdf_active_content": "⚠️ PDF con elementos activos/sospechosos ({tags})",
+        "archive_zip_slip": "🚨 Path traversal en archivo comprimido (Zip Slip: {entry})",
+        "archive_zip_bomb": "🚨 Ratio de compresión extremo ({ratio:.0f}:1) — posible Zip Bomb",
         "secret_password": "Contraseña en texto claro",
         "secret_api_key": "Clave de API",
         "secret_secret": "Secreto genérico",
@@ -305,6 +358,11 @@ Avanzadas:
         "secret_aws_ak": "AWS Access Key",
         "secret_aws_sk": "AWS Secret Key",
         "secret_github": "Token de GitHub",
+        "secret_jwt": "Token JWT",
+        "secret_slack": "Token de Slack",
+        "secret_gcp_key": "Clave API de Google Cloud",
+        "secret_stripe": "Clave API de Stripe",
+        "secret_db_uri": "URI de base de datos con credenciales",
         "secret_card": "Posible nº de tarjeta",
         "secret_b64_entropy": "Cadena base64 de alta entropía (posible secreto)",
         "secret_hex_entropy": "Cadena hex de alta entropía (posible secreto)",
@@ -344,9 +402,12 @@ T = I18N["en"]
 # =================== Utilidades base ===================
 ANSI = sys.stdout.isatty() and not os.getenv("NO_COLOR")
 
+
 def c(s, code):
-    if not ANSI: return s
+    if not ANSI:
+        return s
     return f"\033[{code}m{s}\033[0m"
+
 
 def safe_format(s: str, **kwargs) -> str:
     """
@@ -357,6 +418,7 @@ def safe_format(s: str, **kwargs) -> str:
     for k in kwargs:
         escaped = escaped.replace("{{" + k + "}}", "{" + k + "}")
     return escaped.format(**kwargs)
+
 
 def safe_owner_group(st) -> str:
     if HAVE_PWD_GRP:
@@ -371,21 +433,104 @@ def safe_owner_group(st) -> str:
         return f"{owner}:{group}"
     return T["owner_fmt_unknown"].format(uid=getattr(st, "st_uid", "?"), gid=getattr(st, "st_gid", "?"))
 
+
 def format_size_iec(n: int) -> str:
     if n < 1024:
         return f"{n} B"
-    units = ["KiB","MiB","GiB","TiB","PiB","EiB"]
+    units = ["KiB", "MiB", "GiB", "TiB", "PiB", "EiB"]
     e = int(math.log(n, 1024))
     e = min(e, len(units))
     val = n / (1024 ** e)
-    return f"{val:.2f} {units[e-1]}"
+    return f"{val:.2f} {units[e - 1]}"
+
 
 def format_permissions(mode: int) -> str:
     return stat.filemode(mode)
 
+
 def shutil_which(cmd: str) -> bool:
     from shutil import which
     return which(cmd) is not None
+
+
+# =================== Magic Bytes nativo & MIME ===================
+def detect_builtin_magic_mime(path: Path) -> Optional[str]:
+    """Reconocedor ligero de magic bytes y texto sin dependencias externas."""
+    try:
+        with open(path, "rb") as f:
+            head = f.read(512)
+    except Exception:
+        return None
+    if not head:
+        return "inode/x-empty"
+    if head.startswith(b"\x7fELF"):
+        return "application/x-executable"
+    if head[:2] == b"MZ":
+        return "application/vnd.microsoft.portable-executable"
+    if head[:4] in (b"\xfe\xed\xfa\xce", b"\xfe\xed\xfa\xcf", b"\xcf\xfa\xed\xfe", b"\xce\xfa\xed\xfe", b"\xca\xfe\xba\xbe"):
+        return "application/x-mach-binary"
+    if head.startswith(b"%PDF-"):
+        return "application/pdf"
+    if head.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if head.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if head.startswith((b"GIF87a", b"GIF89a")):
+        return "image/gif"
+    if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+        return "image/webp"
+    if head[:4] == b"RIFF" and head[8:12] == b"WAVE":
+        return "audio/wav"
+    if head.startswith(b"SQLite format 3\x00"):
+        return "application/vnd.sqlite3"
+    if head.startswith(b"PK\x03\x04") or head.startswith(b"PK\x05\x06") or head.startswith(b"PK\x07\x08"):
+        ext = path.suffix.lower()
+        if ext == ".docx":
+            return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        if ext == ".xlsx":
+            return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        if ext == ".pptx":
+            return "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        if ext == ".jar":
+            return "application/java-archive"
+        return "application/zip"
+    if head.startswith(b"\x1f\x8b\x08"):
+        return "application/gzip"
+    if head.startswith(b"BZh"):
+        return "application/x-bzip2"
+    if head.startswith(b"\xfd7zXZ\x00"):
+        return "application/x-xz"
+    if head.startswith(b"\x28\xb5\x2f\xfd"):
+        return "application/zstd"
+    if head.startswith(b"7z\xbc\xaf\x27\x1c"):
+        return "application/x-7z-compressed"
+    if head.startswith(b"Rar!\x1a\x07"):
+        return "application/vnd.rar"
+    if head.startswith(b"\x00asm"):
+        return "application/wasm"
+    if head.startswith(b"{\\rtf"):
+        return "application/rtf"
+    if head.startswith(b"#!"):
+        first_line = head.splitlines()[0].decode("latin-1", errors="ignore").lower()
+        if "python" in first_line:
+            return "text/x-python"
+        if any(sh in first_line for sh in ("sh", "bash", "zsh", "dash", "ksh")):
+            return "text/x-shellscript"
+        return "text/plain"
+    # Heurística de texto plano (como file(1) cuando no hay bytes nulos)
+    if b"\x00" not in head:
+        try:
+            text_sample = head.decode("utf-8")
+            printable = sum(1 for ch in text_sample if ch.isprintable() or ch in "\r\n\t\x0b\x0c")
+            if len(text_sample) > 0 and (printable / len(text_sample)) >= 0.90:
+                guess, _ = mimetypes.guess_type(str(path))
+                if guess and (guess.startswith("text/") or guess in ("application/json", "application/xml", "application/javascript")):
+                    return guess
+                return "text/plain"
+        except UnicodeDecodeError:
+            pass
+    return None
+
 
 def detect_magic_mime(path: Path) -> Optional[str]:
     if MAGIC_AVAILABLE:
@@ -396,48 +541,85 @@ def detect_magic_mime(path: Path) -> Optional[str]:
             return None
     return None
 
+
 def detect_file_mime(path: Path, timeout=2, follow_symlinks=True) -> Optional[str]:
     if not shutil_which("file"):
         return None
     try:
-        args = ["file","--mime-type","-b"]
+        args = ["file", "--mime-type", "-b"]
         if not follow_symlinks:
             args.insert(1, "-h")
-        out = subprocess.run(args+[str(path)], capture_output=True, text=True, timeout=timeout, check=True)
+        out = subprocess.run(args + [str(path)], capture_output=True, text=True, timeout=timeout, check=True)
         mt = out.stdout.strip()
         return mt or None
     except Exception:
         return None
 
+
 def best_mime(path: Path, follow_symlinks=True) -> str:
-    mt = detect_magic_mime(path)
-    if mt: return mt
-    mt = detect_file_mime(path, follow_symlinks=follow_symlinks)
-    if mt: return mt
-    guess, _ = mimetypes.guess_type(str(path))
     if path.is_symlink() and not follow_symlinks:
         return "inode/symlink"
+    mt = detect_magic_mime(path)
+    if mt:
+        return mt
+    mt = detect_file_mime(path, follow_symlinks=follow_symlinks)
+    if mt:
+        return mt
+    mt = detect_builtin_magic_mime(path)
+    if mt:
+        return mt
+    guess, _ = mimetypes.guess_type(str(path))
     return guess or "application/octet-stream"
+
 
 # =================== Secretos / heurística ===================
 SECRET_PATTERNS = [
-    (re.compile(r'password\s*[:=]\s*["\']?[^"\']{4,}', re.I|re.M), "secret_password"),
-    (re.compile(r'api[_-]?key\s*[:=]\s*["\']?[A-Za-z0-9._\-]{10,}', re.I|re.M), "secret_api_key"),
-    (re.compile(r'secret\s*[:=]\s*["\']?[^"\']{6,}', re.I|re.M), "secret_secret"),
-    (re.compile(r'-----BEGIN [A-Z ]+PRIVATE KEY-----'), "secret_privkey"),
-    (re.compile(r'aws[_-]?access[_-]?key[_-]?id\s*[:=]\s*["\']?[A-Z0-9]{20}', re.I), "secret_aws_ak"),
+    (re.compile(r'password\s*[:=]\s*["\']?[^"\'\s]{4,}', re.I | re.M), "secret_password"),
+    (re.compile(r'api[_-]?key\s*[:=]\s*["\']?[A-Za-z0-9._\-]{10,}', re.I | re.M), "secret_api_key"),
+    (re.compile(r'secret\s*[:=]\s*["\']?[^"\'\s]{6,}', re.I | re.M), "secret_secret"),
+    (re.compile(r'-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----'), "secret_privkey"),
+    (re.compile(r'(?:aws[_-]?access[_-]?key[_-]?id\s*[:=]\s*["\']?[A-Z0-9]{20}|\b(?:AKIA|ASIA)[A-Z0-9]{16}\b)', re.I), "secret_aws_ak"),
     (re.compile(r'aws[_-]?secret[_-]?access[_-]?key\s*[:=]\s*["\']?[A-Za-z0-9/+=]{40}', re.I), "secret_aws_sk"),
-    (re.compile(r'(ghp|github_pat)_[A-Za-z0-9]{20,}'), "secret_github"),
+    (re.compile(r'\b(?:ghp|gho|ghu|ghs|ghr|github_pat)_[A-Za-z0-9_]{20,}\b'), "secret_github"),
+    (re.compile(r'\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b'), "secret_jwt"),
+    (re.compile(r'\bxox[baprs]-[0-9]{10,13}-[0-9]{10,13}[a-zA-Z0-9-]*\b'), "secret_slack"),
+    (re.compile(r'\bAIza[0-9A-Za-z\-_]{35}\b'), "secret_gcp_key"),
+    (re.compile(r'\b(?:sk|rk)_live_[0-9a-zA-Z]{24,}\b'), "secret_stripe"),
+    (re.compile(r'(?:mongodb(?:\+srv)?|postgres(?:ql)?|mysql|mariadb|redis|amqp)://[^/\s:@]+:[^/\s@]+@[^\s"\']+', re.I), "secret_db_uri"),
 ]
 CARD_RE   = re.compile(r'[\d]{4}[\s-]?[\d]{4}[\s-]?[\d]{4}[\s-]?[\d]{4}')
 BASE64_RE = re.compile(r'\b[A-Za-z0-9+/]{24,}={0,2}\b')
 HEX_RE    = re.compile(r'\b[0-9a-fA-F]{32,}\b')
 
+
 def shannon_entropy(s: str) -> float:
     from math import log2
-    if not s: return 0.0
+    if not s:
+        return 0.0
     counts = {ch: s.count(ch) for ch in set(s)}
-    return -sum((c/len(s)) * log2(c/len(s)) for c in counts.values())
+    return -sum((c / len(s)) * log2(c / len(s)) for c in counts.values())
+
+
+def file_shannon_entropy(path: Path, max_sample_bytes: int = 2 * 1024 * 1024) -> Optional[float]:
+    """Calcula la entropía de Shannon de un fichero en bits por byte (0.0 a 8.0)."""
+    try:
+        with open(path, "rb") as f:
+            data = f.read(max_sample_bytes)
+        if not data:
+            return 0.0
+        counts = [0] * 256
+        for b in data:
+            counts[b] += 1
+        total = len(data)
+        ent = 0.0
+        for count in counts:
+            if count:
+                p = count / total
+                ent -= p * math.log2(p)
+        return round(ent, 4)
+    except Exception:
+        return None
+
 
 def luhn_ok(num: str) -> bool:
     digits = [int(c) for c in re.sub(r"\D", "", num)]
@@ -448,19 +630,25 @@ def luhn_ok(num: str) -> bool:
     for i, d in enumerate(digits):
         if i % 2 == parity:
             d *= 2
-            if d > 9: d -= 9
+            if d > 9:
+                d -= 9
         s += d
     return s % 10 == 0
 
+
 MAL_HEUR_PATTERNS = [
     re.compile(r'base64\.(b64decode|urlsafe_b64decode)\s*\('),
-    re.compile(r'(exec|eval)\s*\('),
-    re.compile(r'(?<!\w)subprocess\.(Popen|call|run)\s*\('),
+    re.compile(r'(?<!\w)(exec|eval)\s*\('),
+    re.compile(r'(?<!\w)subprocess\.(Popen|call|run|check_output)\s*\('),
     re.compile(r'os\.(system|popen)\s*\('),
     re.compile(r'__import__\s*\('),
     re.compile(r'(curl|wget)\s+https?://', re.I),
-    re.compile(r'PowerShell\s*-Enc', re.I),
+    re.compile(r'PowerShell\s*.*-(?:Enc|EncodedCommand|e)\b', re.I),
+    re.compile(r'(?:IEX|Invoke-Expression)\s*\(.*(?:DownloadString|Invoke-WebRequest)', re.I),
+    re.compile(r'/dev/(?:tcp|udp)/[^\s/]+/\d+'),
+    re.compile(r'\b(?:nc|ncat|netcat)\b.*\s-[ec]\s'),
 ]
+
 
 def heuristic_malware_lines(text: str) -> List[int]:
     lines = text.splitlines()
@@ -471,41 +659,29 @@ def heuristic_malware_lines(text: str) -> List[int]:
                 flagged.add(i)
     return sorted(flagged)
 
+
 def detectar_secretos_en_texto(file_path: Path,
-                               max_bytes: int = 1024*1024,
+                               max_bytes: int = 1024 * 1024,
                                max_lines: int = 800,
                                encoding: str = "utf-8",
-                               enable_heuristics: bool = False) -> Tuple[List[str], Dict[str,Any]]:
+                               enable_heuristics: bool = False) -> Tuple[List[str], Dict[str, Any]]:
     secretos: List[str] = []
-    extra: Dict[str,Any] = {}
+    extra: Dict[str, Any] = {}
     try:
         if file_path.stat().st_size > max_bytes:
             return secretos, extra
         with open(file_path, 'r', encoding=encoding, errors='ignore') as f:
             lines = []
             for i, line in enumerate(f):
-                if i >= max_lines: break
+                if i >= max_lines:
+                    break
                 lines.append(line)
             contenido = ''.join(lines)
     except Exception:
         return secretos, extra
 
-    for patron, key in SECRET_PATTERNS:
-        if patron.search(contenido):
-            secretos.append("🔑 " + T[key])
-    for m in CARD_RE.finditer(contenido):
-        if luhn_ok(m.group(0)): secretos.append("🔑 " + T["secret_card"]); break
-    for m in BASE64_RE.findall(contenido):
-        if shannon_entropy(m) >= 4.5: secretos.append("🔑 " + T["secret_b64_entropy"]); break
-    for m in HEX_RE.findall(contenido):
-        if shannon_entropy(m) >= 3.5: secretos.append("🔑 " + T["secret_hex_entropy"]); break
+    return detectar_secretos_en_texto_from_text(contenido, (max_bytes, max_lines), enable_heuristics)
 
-    if enable_heuristics:
-        lines = heuristic_malware_lines(contenido)
-        if lines:
-            extra["malware_heuristics"] = {"suspicious_lines": lines}
-
-    return secretos, extra
 
 # =================== Hash cache + historial (SQLite) ===================
 class HashCache:
@@ -516,52 +692,55 @@ class HashCache:
 
     def _ensure_schema(self):
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        con = sqlite3.connect(self.db_path)
-        cur = con.cursor()
-        cur.execute("""CREATE TABLE IF NOT EXISTS hash_cache(
-            path TEXT, size INTEGER, mtime REAL, algo TEXT, hexdigest TEXT,
-            PRIMARY KEY(path, size, mtime, algo)
-        )""")
-        cur.execute("""CREATE TABLE IF NOT EXISTS history(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ts REAL, path TEXT, size INTEGER, mtime REAL, sha256 TEXT,
-            options_json TEXT, info_json TEXT
-        )""")
-        con.commit(); con.close()
+        with closing(sqlite3.connect(self.db_path)) as con:
+            cur = con.cursor()
+            cur.execute("""CREATE TABLE IF NOT EXISTS hash_cache(
+                path TEXT, size INTEGER, mtime REAL, algo TEXT, hexdigest TEXT,
+                PRIMARY KEY(path, size, mtime, algo)
+            )""")
+            cur.execute("""CREATE TABLE IF NOT EXISTS history(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ts REAL, path TEXT, size INTEGER, mtime REAL, sha256 TEXT,
+                options_json TEXT, info_json TEXT
+            )""")
+            con.commit()
 
     def get(self, path: Path, st, algo: str) -> Optional[str]:
-        if not self.enable_cache: return None
-        con = sqlite3.connect(self.db_path)
-        cur = con.cursor()
-        cur.execute("SELECT hexdigest FROM hash_cache WHERE path=? AND size=? AND mtime=? AND algo=?",
-                    (str(path), st.st_size, st.st_mtime, algo))
-        row = cur.fetchone(); con.close()
-        return row[0] if row else None
+        if not self.enable_cache:
+            return None
+        with closing(sqlite3.connect(self.db_path)) as con:
+            cur = con.cursor()
+            cur.execute("SELECT hexdigest FROM hash_cache WHERE path=? AND size=? AND mtime=? AND algo=?",
+                        (str(path), st.st_size, st.st_mtime, algo))
+            row = cur.fetchone()
+            return row[0] if row else None
 
     def put(self, path: Path, st, algo: str, hexdigest: str) -> None:
-        if not self.enable_cache: return
-        con = sqlite3.connect(self.db_path)
-        con.execute("INSERT OR REPLACE INTO hash_cache(path,size,mtime,algo,hexdigest) VALUES(?,?,?,?,?)",
-                    (str(path), st.st_size, st.st_mtime, algo, hexdigest))
-        con.commit(); con.close()
+        if not self.enable_cache:
+            return
+        with closing(sqlite3.connect(self.db_path)) as con:
+            con.execute("INSERT OR REPLACE INTO hash_cache(path,size,mtime,algo,hexdigest) VALUES(?,?,?,?,?)",
+                        (str(path), st.st_size, st.st_mtime, algo, hexdigest))
+            con.commit()
 
-    def save_history(self, path: Path, st, sha256: Optional[str], options: Dict[str,Any], info: Dict[str,Any]) -> None:
-        con = sqlite3.connect(self.db_path)
-        con.execute("INSERT INTO history(ts,path,size,mtime,sha256,options_json,info_json) VALUES(?,?,?,?,?,?,?)",
-                    (time.time(), str(path), getattr(st, "st_size", None), getattr(st, "st_mtime", None),
-                     sha256, json.dumps(options, ensure_ascii=False), json.dumps(info, ensure_ascii=False)))
-        con.commit(); con.close()
+    def save_history(self, path: Path, st, sha256: Optional[str], options: Dict[str, Any], info: Dict[str, Any]) -> None:
+        with closing(sqlite3.connect(self.db_path)) as con:
+            con.execute("INSERT INTO history(ts,path,size,mtime,sha256,options_json,info_json) VALUES(?,?,?,?,?,?,?)",
+                        (time.time(), str(path), getattr(st, "st_size", None), getattr(st, "st_mtime", None),
+                         sha256, json.dumps(options, ensure_ascii=False), json.dumps(info, ensure_ascii=False)))
+            con.commit()
 
-    def show_history(self, n: int) -> List[Dict[str,Any]]:
-        con = sqlite3.connect(self.db_path)
-        con.row_factory = sqlite3.Row
-        rows = con.execute("SELECT ts,path,size,mtime,sha256 FROM history ORDER BY id DESC LIMIT ?", (n,)).fetchall()
-        con.close()
-        return [dict(r) for r in rows]
+    def show_history(self, n: int) -> List[Dict[str, Any]]:
+        with closing(sqlite3.connect(self.db_path)) as con:
+            con.row_factory = sqlite3.Row
+            rows = con.execute("SELECT ts,path,size,mtime,sha256 FROM history ORDER BY id DESC LIMIT ?", (n,)).fetchall()
+            return [dict(r) for r in rows]
+
 
 def default_db_path() -> Path:
-    base = Path(os.getenv("XDG_STATE_HOME") or Path.home()/".local/state")
+    base = Path(os.getenv("XDG_STATE_HOME") or Path.home() / ".local/state")
     return base / "sabbat_tools" / "fileinspect.db"
+
 
 def calcular_hashes(file_path: Path, algos: Tuple[str, ...], cache: Optional[HashCache], st=None) -> Dict[str, str]:
     hashes: Dict[str, str] = {}
@@ -581,7 +760,8 @@ def calcular_hashes(file_path: Path, algos: Tuple[str, ...], cache: Optional[Has
         try:
             hasher = hashlib.new(algo)
         except ValueError:
-            hashes[algo] = T["hash_invalid_algo"]; continue
+            hashes[algo] = T["hash_invalid_algo"]
+            continue
 
         # cache hit?
         if cache and st:
@@ -592,16 +772,16 @@ def calcular_hashes(file_path: Path, algos: Tuple[str, ...], cache: Optional[Has
 
         try:
             with open(file_path, "rb") as f:
-                if use_mmap:
+                if use_mmap and st and getattr(st, "st_size", 0) > 0:
                     try:
                         with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as mm:
                             hasher.update(mm)
                     except Exception:
                         f.seek(0)
-                        for chunk in iter(lambda: f.read(1<<20), b""):
+                        for chunk in iter(lambda: f.read(1 << 20), b""):
                             hasher.update(chunk)
                 else:
-                    for chunk in iter(lambda: f.read(1<<20), b""):
+                    for chunk in iter(lambda: f.read(1 << 20), b""):
                         hasher.update(chunk)
             digest = hasher.hexdigest()
             hashes[algo] = digest
@@ -611,20 +791,67 @@ def calcular_hashes(file_path: Path, algos: Tuple[str, ...], cache: Optional[Has
             hashes[algo] = T["hash_read_error"]
     return hashes
 
-# =================== Seguridad de permisos / nombres ===================
-NOMBRES_RIESGO = ['.ssh', '.pem', 'id_rsa', 'password', 'secret', '.env', '.bak', '.tmp', '~']
+
+# =================== Seguridad de permisos / nombres / spoofing ===================
+NOMBRES_RIESGO = ['.ssh', '.pem', 'id_rsa', 'id_ed25519', 'password', 'secret', '.env', '.bak', '.tmp', '~', 'credentials', '.kdbx']
+
+DOC_OR_MEDIA_EXTS = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.odt', '.ods', '.txt', '.csv', '.rtf', '.mp3', '.mp4', '.wav', '.avi'}
+EXEC_EXTS = {'.exe', '.scr', '.pif', '.bat', '.cmd', '.com', '.ps1', '.vbs', '.js', '.jse', '.wsf', '.wsh', '.msi', '.hta', '.cpl', '.sh', '.run', '.bin', '.elf'}
+
+
+def detect_double_extension(path: Path) -> Optional[str]:
+    """Detecta nombres como factura.pdf.exe o documento.docx.ps1."""
+    parts = path.name.lower().split(".")
+    if len(parts) >= 3:
+        last_ext = "." + parts[-1]
+        prev_ext = "." + parts[-2]
+        if last_ext in EXEC_EXTS and prev_ext in DOC_OR_MEDIA_EXTS:
+            return T["double_ext"].format(name=path.name)
+    return None
+
+
+def detect_extension_spoofing(path: Path) -> Optional[str]:
+    """Detecta si un archivo con extensión benigna contiene en realidad un ejecutable o formato distinto."""
+    ext = path.suffix.lower()
+    if not ext or ext not in DOC_OR_MEDIA_EXTS:
+        return None
+    exec_kind = is_executable_magic(path)
+    if exec_kind:
+        return T["ext_spoofing"].format(ext=ext, actual=exec_kind)
+    builtin_mime = detect_builtin_magic_mime(path)
+    if not builtin_mime:
+        return None
+    # Verificar discrepancias claras de formato (p.ej. .jpg que es un script o .txt que es un ZIP/PDF)
+    if ext in {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'} and not builtin_mime.startswith("image/"):
+        return T["ext_spoofing"].format(ext=ext, actual=builtin_mime)
+    if ext == '.pdf' and builtin_mime != "application/pdf":
+        return T["ext_spoofing"].format(ext=ext, actual=builtin_mime)
+    return None
+
 
 def analizar_riesgos_seguridad(path: Path, st, is_symlink=False) -> List[str]:
     alertas = []
     mode = st.st_mode
     if not is_symlink:
-        if mode & stat.S_ISUID: alertas.append(T["suid"])
-        if mode & stat.S_ISGID: alertas.append(T["sgid"])
-        if (mode & 0o777) == 0o777: alertas.append(T["perm_777"])
-        elif (mode & stat.S_IWOTH): alertas.append(T["perm_world_writable"])
+        if mode & stat.S_ISUID:
+            alertas.append(T["suid"])
+        if mode & stat.S_ISGID:
+            alertas.append(T["sgid"])
+        if (mode & 0o777) == 0o777:
+            alertas.append(T["perm_777"])
+        elif mode & stat.S_IWOTH:
+            alertas.append(T["perm_world_writable"])
     if any(r in str(path).lower() for r in NOMBRES_RIESGO):
         alertas.append(T["sensitive_name"])
+    dbl = detect_double_extension(path)
+    if dbl:
+        alertas.append(dbl)
+    if not is_symlink and stat.S_ISREG(mode):
+        spoof = detect_extension_spoofing(path)
+        if spoof:
+            alertas.append(spoof)
     return alertas
+
 
 # =================== YARA ===================
 class YaraRunner:
@@ -659,6 +886,7 @@ class YaraRunner:
             logging.debug("YARA scan error on %s: %s", path, e)
             return []
 
+
 # =================== Plugins ===================
 class PluginManager:
     def __init__(self, dirs: List[Path]):
@@ -679,8 +907,8 @@ class PluginManager:
                 except Exception as e:
                     logging.warning("Failed to load plugin %s: %s", py, e)
 
-    def run(self, path: Path, info: Dict[str,Any]) -> Dict[str,Any]:
-        results: Dict[str,Any] = {}
+    def run(self, path: Path, info: Dict[str, Any]) -> Dict[str, Any]:
+        results: Dict[str, Any] = {}
         for mod in self.plugins:
             try:
                 out = mod.run(path, info)  # contract: returns dict or None
@@ -690,112 +918,188 @@ class PluginManager:
                 logging.debug("Plugin error in %s: %s", getattr(mod, "__name__", "?"), e)
         return results
 
+
 # =================== Comprimidos (zip/tar) ===================
-import zipfile, tarfile
+def _is_unsafe_archive_member(name: str) -> bool:
+    """Detecta intentos de Zip Slip (path traversal o rutas absolutas en archivos comprimidos)."""
+    norm = name.replace("\\", "/")
+    if norm.startswith("/") or re.match(r"^[A-Za-z]:/", norm):
+        return True
+    parts = [p for p in norm.split("/") if p]
+    return ".." in parts
+
 
 def detectar_secretos_en_texto_from_text(text: str,
-                               limits: Tuple[int,int],
-                               enable_heuristics: bool=False) -> Tuple[List[str], Dict[str,Any]]:
+                                         limits: Tuple[int, int],
+                                         enable_heuristics: bool = False) -> Tuple[List[str], Dict[str, Any]]:
     secretos: List[str] = []
-    extra: Dict[str,Any] = {}
+    extra: Dict[str, Any] = {}
     for patron, key in SECRET_PATTERNS:
         if patron.search(text):
-            secretos.append("🔑 " + T[key])
+            alert_txt = "🔑 " + T[key]
+            if alert_txt not in secretos:
+                secretos.append(alert_txt)
     for m in CARD_RE.finditer(text):
-        if luhn_ok(m.group(0)): secretos.append("🔑 " + T["secret_card"]); break
+        if luhn_ok(m.group(0)):
+            secretos.append("🔑 " + T["secret_card"])
+            break
     for m in BASE64_RE.findall(text):
-        if shannon_entropy(m) >= 4.5: secretos.append("🔑 " + T["secret_b64_entropy"]); break
+        if shannon_entropy(m) >= 4.5:
+            secretos.append("🔑 " + T["secret_b64_entropy"])
+            break
     for m in HEX_RE.findall(text):
-        if shannon_entropy(m) >= 3.5: secretos.append("🔑 " + T["secret_hex_entropy"]); break
+        if shannon_entropy(m) >= 3.5:
+            secretos.append("🔑 " + T["secret_hex_entropy"])
+            break
     if enable_heuristics:
         lines = heuristic_malware_lines(text)
         if lines:
             extra["malware_heuristics"] = {"suspicious_lines": lines}
     return secretos, extra
 
-def analyze_archives(path: Path, mode: str, text_limits: Tuple[int,int], enable_heuristics: bool=False) -> Dict[str,Any]:
+
+def analyze_archives(path: Path, mode: str, text_limits: Tuple[int, int], enable_heuristics: bool = False) -> Dict[str, Any]:
     """
     mode: 'off'|'list'|'deep'
     """
-    res: Dict[str,Any] = {}
-    if mode == "off": return res
+    res: Dict[str, Any] = {}
+    if mode == "off":
+        return res
 
-    entries: List[Dict[str,Any]] = []
+    entries: List[Dict[str, Any]] = []
+    archive_alerts: List[str] = []
+
     def add_entry(name, size, type_="file", alerts=None):
         entries.append({"name": name, "size": size, "type": type_, "alerts": alerts or []})
 
     try:
         if zipfile.is_zipfile(path):
+            total_uncompressed = 0
+            total_compressed = 0
             with zipfile.ZipFile(path) as zf:
                 for zi in zf.infolist():
                     alerts = []
+                    total_uncompressed += max(0, zi.file_size)
+                    total_compressed += max(0, zi.compress_size)
+                    if _is_unsafe_archive_member(zi.filename):
+                        slip_msg = T["archive_zip_slip"].format(entry=zi.filename)
+                        alerts.append(slip_msg)
+                        archive_alerts.append(slip_msg)
+                    if zi.compress_size > 0 and zi.file_size > 10 * 1024 * 1024:
+                        ratio = zi.file_size / zi.compress_size
+                        if ratio > 100:
+                            bomb_msg = T["archive_zip_bomb"].format(ratio=ratio)
+                            alerts.append(bomb_msg)
+                            if bomb_msg not in archive_alerts:
+                                archive_alerts.append(bomb_msg)
                     add_entry(zi.filename, zi.file_size, "dir" if zi.is_dir() else "file", alerts)
                     if mode == "deep" and not zi.is_dir() and zi.file_size <= text_limits[0]:
                         try:
                             data = zf.read(zi)
-                            try:
-                                text = data.decode("utf-8", errors="ignore")
-                                secretos, extra = detectar_secretos_en_texto_from_text(text, text_limits, enable_heuristics)
-                                alerts.extend(secretos)
-                                if extra.get("malware_heuristics"):
-                                    alerts.append("malware heuristics")
-                            except Exception:
-                                pass
+                            text = data.decode("utf-8", errors="ignore")
+                            secretos, extra = detectar_secretos_en_texto_from_text(text, text_limits, enable_heuristics)
+                            alerts.extend(secretos)
+                            if extra.get("malware_heuristics"):
+                                alerts.append("malware heuristics")
                         except Exception:
                             pass
-            res["archive"] = {"type":"zip", "entries": entries}
+            res["archive"] = {
+                "type": "zip",
+                "entries": entries,
+                "total_uncompressed": total_uncompressed,
+                "total_compressed": total_compressed,
+            }
+            if archive_alerts:
+                res["_archive_security_alerts"] = archive_alerts
             return res
 
         if tarfile.is_tarfile(path):
+            total_uncompressed = 0
             with tarfile.open(path) as tf:
                 for ti in tf.getmembers():
                     alerts = []
+                    total_uncompressed += max(0, ti.size)
+                    if _is_unsafe_archive_member(ti.name):
+                        slip_msg = T["archive_zip_slip"].format(entry=ti.name)
+                        alerts.append(slip_msg)
+                        archive_alerts.append(slip_msg)
                     add_entry(ti.name, ti.size, "dir" if ti.isdir() else "file", alerts)
                     if mode == "deep" and ti.isfile() and ti.size <= text_limits[0]:
                         try:
                             f = tf.extractfile(ti)
                             if f:
                                 data = f.read()
-                                try:
-                                    text = data.decode("utf-8", errors="ignore")
-                                    secretos, extra = detectar_secretos_en_texto_from_text(text, text_limits, enable_heuristics)
-                                    alerts.extend(secretos)
-                                    if extra.get("malware_heuristics"):
-                                        alerts.append("malware heuristics")
-                                except Exception:
-                                    pass
+                                text = data.decode("utf-8", errors="ignore")
+                                secretos, extra = detectar_secretos_en_texto_from_text(text, text_limits, enable_heuristics)
+                                alerts.extend(secretos)
+                                if extra.get("malware_heuristics"):
+                                    alerts.append("malware heuristics")
                         except Exception:
                             pass
-            res["archive"] = {"type":"tar", "entries": entries}
+            res["archive"] = {"type": "tar", "entries": entries, "total_uncompressed": total_uncompressed}
+            if archive_alerts:
+                res["_archive_security_alerts"] = archive_alerts
             return res
     except Exception as e:
         logging.debug("Archive analyze error %s: %s", path, e)
 
     return res
 
+
 # =================== Office/PDF ===================
-def analyze_office_pdf(path: Path, mime: str) -> List[str]:
+PDF_RISKY_TAGS = (b"/JavaScript", b"/JS", b"/OpenAction", b"/AA", b"/Launch", b"/EmbeddedFiles", b"/RichMedia", b"/XFA")
+
+
+def analyze_office_pdf(path: Path, mime: str) -> Tuple[List[str], List[str]]:
     details: List[str] = []
+    alerts: List[str] = []
     if mime == "application/pdf" or path.suffix.lower() == ".pdf":
+        pages_found = False
         try:
-            from PyPDF2 import PdfReader
+            try:
+                from pypdf import PdfReader  # type: ignore
+            except ImportError:
+                from PyPDF2 import PdfReader  # type: ignore
             reader = PdfReader(path)
             details.append(T["pdf_pages"].format(n=len(reader.pages)))
+            pages_found = True
             if reader.metadata and "/Author" in reader.metadata:
                 details.append(T["pdf_author"].format(author=reader.metadata["/Author"]))
         except Exception as e:
-            logging.debug("PDF analysis error: %s", e)
-    elif "openxmlformats" in mime or path.suffix.lower() in (".docx",".xlsx",".pptx"):
+            logging.debug("PDF library analysis error: %s", e)
+
+        # Escaneo nativo de estructura PDF (páginas + objetos activos sospechosos)
+        try:
+            with open(path, "rb") as f:
+                raw_pdf = f.read(2 * 1024 * 1024)
+            if not pages_found:
+                page_matches = re.findall(rb"/Type\s*/Page\b", raw_pdf)
+                if page_matches:
+                    details.append(T["pdf_pages"].format(n=len(page_matches)))
+            found_tags = []
+            for tag in PDF_RISKY_TAGS:
+                if re.search(re.escape(tag) + rb"\b", raw_pdf):
+                    found_tags.append(tag.decode("ascii"))
+            if found_tags:
+                alerts.append(T["pdf_active_content"].format(tags=", ".join(found_tags)))
+        except Exception as e:
+            logging.debug("PDF raw scan error: %s", e)
+
+    elif "openxmlformats" in mime or path.suffix.lower() in (".docx", ".xlsx", ".pptx"):
         try:
             with zipfile.ZipFile(path) as z:
-                if "docProps/core.xml" in z.namelist():
+                names = z.namelist()
+                if "docProps/core.xml" in names:
                     details.append(T["office_doc"])
+                if any(n.lower().endswith("vbaproject.bin") for n in names):
+                    alerts.append("⚠️ VBA Macro (vbaProject.bin) detected in Office document")
         except Exception as e:
             logging.debug("Office doc analysis error: %s", e)
-    return details
+    return details, alerts
+
 
 # =================== Media metadata ===================
-def extract_media_info(path: Path) -> Dict[str,Any]:
+def extract_media_info(path: Path) -> Dict[str, Any]:
     # Primero pymediainfo, luego ffprobe
     if MEDIAINFO_AVAILABLE:
         try:
@@ -821,7 +1125,7 @@ def extract_media_info(path: Path) -> Dict[str,Any]:
             fmt = data.get("format", {})
             if fmt:
                 return {
-                    "duration_ms": float(fmt.get("duration"))*1000 if fmt.get("duration") else None,
+                    "duration_ms": float(fmt.get("duration")) * 1000 if fmt.get("duration") else None,
                     "format": fmt.get("format_name"),
                     "overall_bitrate": int(fmt.get("bit_rate")) if fmt.get("bit_rate") else None,
                 }
@@ -829,10 +1133,12 @@ def extract_media_info(path: Path) -> Dict[str,Any]:
             logging.debug("ffprobe error: %s", e)
     return {}
 
+
 # =================== VirusTotal ===================
-def check_virustotal(file_hash: str, api_key: Optional[str] = None) -> Optional[Dict[str,int]]:
+def check_virustotal(file_hash: str, api_key: Optional[str] = None) -> Optional[Dict[str, int]]:
     api_key = api_key or os.getenv("VT_API_KEY")
-    if not api_key: return None
+    if not api_key:
+        return None
     try:
         import urllib.request
         req = urllib.request.Request(
@@ -850,10 +1156,13 @@ def check_virustotal(file_hash: str, api_key: Optional[str] = None) -> Optional[
         logging.debug("VirusTotal error: %s", e)
         return None
 
+
 # =================== Recorrido recursivo ===================
 def match_any(name: str, patterns: List[str]) -> bool:
-    if not patterns: return False
+    if not patterns:
+        return False
     return any(fnmatch.fnmatch(name, p) for p in patterns)
+
 
 def walk_filtered(root: Path, include_patterns: List[str], exclude_dirs: List[str],
                   exclude_patterns: List[str], max_depth: Optional[int]) -> Iterable[Path]:
@@ -872,36 +1181,105 @@ def walk_filtered(root: Path, include_patterns: List[str], exclude_dirs: List[st
                 continue
             yield p
 
-# =================== Núcleo de análisis ===================
+
+# =================== Núcleo de análisis binario y multimedia ===================
 def is_executable_magic(path: Path) -> Optional[str]:
     try:
         with open(path, "rb") as f:
             head = f.read(8)
-        if head.startswith(b"\x7fELF"): return "ELF"
-        if head[:2] == b"MZ":           return "PE"
-        if head in (b"\xfe\xed\xfa\xce", b"\xfe\xed\xfa\xcf", b"\xcf\xfa\xed\xfe", b"\xca\xfe\xba\xbe"):
+        if head.startswith(b"\x7fELF"):
+            return "ELF"
+        if head[:2] == b"MZ":
+            return "PE"
+        if head[:4] in (b"\xfe\xed\xfa\xce", b"\xfe\xed\xfa\xcf", b"\xcf\xfa\xed\xfe", b"\xce\xfa\xed\xfe", b"\xca\xfe\xba\xbe"):
             return "Mach-O"
     except Exception:
         pass
     return None
 
-def run_readelf_comment(path: Path, timeout=2) -> Optional[str]:
-    if not shutil_which("readelf"): return None
+
+def analyze_pe_header(path: Path) -> Tuple[List[str], List[str]]:
+    """Analiza cabeceras PE (Windows EXE/DLL) en Python puro usando struct."""
+    details: List[str] = []
+    alerts: List[str] = []
     try:
-        out = subprocess.run(["readelf","-p",".comment",str(path)],
+        with open(path, "rb") as f:
+            dos = f.read(64)
+            if len(dos) < 64 or dos[:2] != b"MZ":
+                return details, alerts
+            pe_offset = struct.unpack("<I", dos[60:64])[0]
+            f.seek(pe_offset)
+            pe_sig = f.read(24)
+            if len(pe_sig) < 24 or pe_sig[:4] != b"PE\x00\x00":
+                return details, alerts
+            machine, num_sections, ts, _, _, opt_size, characteristics = struct.unpack("<HHIIIHH", pe_sig[4:24])
+            arch_map = {0x014c: "x86", 0x8664: "x86_64", 0xaa64: "ARM64", 0x01c0: "ARM", 0x01c4: "ARMv7"}
+            arch = arch_map.get(machine, f"0x{machine:04x}")
+            is_dll = bool(characteristics & 0x2000)
+            kind_str = "DLL" if is_dll else "EXE"
+            ts_str = datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC") if ts > 0 else "N/A"
+            details.append(f"PE {kind_str} ({arch}), build: {ts_str}")
+
+            if opt_size > 0:
+                f.seek(pe_offset + 24 + opt_size)
+            sec_names = []
+            suspicious_packers = {"upx0", "upx1", "upx2", ".upx", ".aspack", ".vmp0", ".vmp1", ".themida", ".nsp0"}
+            for _ in range(min(num_sections, 64)):
+                sec = f.read(40)
+                if len(sec) < 40:
+                    break
+                raw_name = sec[:8].split(b"\x00", 1)[0].decode("latin-1", errors="ignore").strip()
+                if raw_name:
+                    sec_names.append(raw_name)
+                    if raw_name.lower() in suspicious_packers:
+                        alerts.append(T["packer_detected"].format(sec=raw_name))
+            if sec_names:
+                details.append(f"PE Sections ({len(sec_names)}): {', '.join(sec_names[:8])}")
+    except Exception as e:
+        logging.debug("PE parse error: %s", e)
+    return details, alerts
+
+
+def analyze_elf_header(path: Path) -> List[str]:
+    """Analiza cabeceras ELF en Python puro usando struct."""
+    details: List[str] = []
+    try:
+        with open(path, "rb") as f:
+            hdr = f.read(64)
+        if len(hdr) < 20 or not hdr.startswith(b"\x7fELF"):
+            return details
+        ei_class = hdr[4]  # 1=32-bit, 2=64-bit
+        ei_data = hdr[5]   # 1=little, 2=big
+        bits = "64-bit" if ei_class == 2 else ("32-bit" if ei_class == 1 else "?")
+        endian = "<" if ei_data == 1 else ">"
+        e_type, e_machine = struct.unpack(f"{endian}HH", hdr[16:20])
+        type_map = {1: "REL", 2: "EXEC", 3: "DYN/PIE", 4: "CORE"}
+        mach_map = {0x03: "x86", 0x3E: "x86_64", 0x28: "ARM", 0xB7: "AArch64", 0xF3: "RISC-V"}
+        details.append(f"ELF {bits} {type_map.get(e_type, str(e_type))} ({mach_map.get(e_machine, f'0x{e_machine:x}')})")
+    except Exception as e:
+        logging.debug("ELF parse error: %s", e)
+    return details
+
+
+def run_readelf_comment(path: Path, timeout=2) -> Optional[str]:
+    if not shutil_which("readelf"):
+        return None
+    try:
+        out = subprocess.run(["readelf", "-p", ".comment", str(path)],
                              capture_output=True, text=True, timeout=timeout, check=True)
         txt = out.stdout
         if "GCC:" in txt:
-            line = txt.split("GCC:",1)[1].strip().splitlines()[0]
+            line = txt.split("GCC:", 1)[1].strip().splitlines()[0]
             return f"GCC {line}"
     except Exception:
         pass
     return None
 
-def extract_exif_summary(path: Path) -> Dict[str,Any]:
+
+def extract_exif_summary(path: Path) -> Dict[str, Any]:
     if not PILLOW_AVAILABLE:
         return {"note": T["pillow_missing"]}
-    out: Dict[str,Any] = {}
+    out: Dict[str, Any] = {}
     try:
         with Image.open(path) as img:
             img.verify()
@@ -916,64 +1294,79 @@ def extract_exif_summary(path: Path) -> Dict[str,Any]:
                 for k, v in exif.items():
                     tag = ExifTags.TAGS.get(k, str(k))
                     if tag == "GPSInfo":
-                        gps = {ExifTags.GPSTAGS.get(kk,str(kk)): vv for kk,vv in v.items()} if isinstance(v, dict) else {}
+                        gps = {ExifTags.GPSTAGS.get(kk, str(kk)): vv for kk, vv in v.items()} if isinstance(v, dict) else {}
                     else:
-                        if tag in ("DateTimeOriginal","Make","Model","Software"):
+                        if tag in ("DateTimeOriginal", "Make", "Model", "Software"):
                             fields[tag] = v
-            if gps: out["gps"] = True
-            if fields: out["fields"] = fields
+            if gps:
+                out["gps"] = True
+            if fields:
+                out["fields"] = fields
     except Exception:
         return {"error": T["img_meta_error"]}
     return out
 
+
 def get_file_info(file_path_str: str,
                   follow_symlinks: bool = True,
                   utc_times: bool = False,
-                  secret_limits: Tuple[int,int] = (1024*1024, 800),
+                  secret_limits: Tuple[int, int] = (1024 * 1024, 800),
                   yara_runner: Optional[YaraRunner] = None,
                   malware_heuristics: bool = False,
                   archives_mode: str = "off",
                   plugin_mgr: Optional[PluginManager] = None,
-                  vt_api_key: Optional[str] = None) -> Dict[str,Any]:
+                  vt_api_key: Optional[str] = None) -> Dict[str, Any]:
     file_path = Path(file_path_str)
-    if not file_path.exists():
+    is_symlink = file_path.is_symlink()
+    if not file_path.exists() and not is_symlink:
         raise FileNotFoundError(T["file_not_found"].format(f=file_path))
 
-    is_symlink = file_path.is_symlink()
     lstat_obj = file_path.lstat() if is_symlink else None
     real_path = None
     symlink_target = None
+    symlink_broken = False
 
     if is_symlink:
         try:
             symlink_target = os.readlink(file_path)
         except OSError:
             symlink_target = T["broken_symlink"]
+        if not file_path.exists():
+            symlink_broken = True
 
-    if is_symlink and follow_symlinks:
+    if is_symlink and follow_symlinks and not symlink_broken:
         try:
             real_path = file_path.resolve(strict=True)
         except Exception:
             real_path = None
 
-    st = (file_path.stat() if (not is_symlink or follow_symlinks) else lstat_obj)
+    if not is_symlink or (follow_symlinks and not symlink_broken):
+        st = file_path.stat()
+    else:
+        st = lstat_obj
+
     mode = st.st_mode
     is_regular = stat.S_ISREG(mode)
     is_dir = stat.S_ISDIR(mode)
 
-    mime = best_mime(file_path, follow_symlinks=(not is_symlink or follow_symlinks))
+    mime = best_mime(file_path, follow_symlinks=(not is_symlink or (follow_symlinks and not symlink_broken)))
 
     def fmt_ts(ts: float) -> str:
         if utc_times:
             return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
         return datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
 
-    info: Dict[str,Any] = {
+    alertas_seg = analizar_riesgos_seguridad(file_path, st, is_symlink)
+    if symlink_broken:
+        alertas_seg.append(T["broken_symlink_alert"])
+
+    info: Dict[str, Any] = {
         "lang": "en" if T is I18N["en"] else "es",
         "nombre": str(file_path),
         "realpath": str(real_path) if real_path else None,
         "tipo_mime": mime,
         "tamaño_bytes": st.st_size,
+        "entropia": file_shannon_entropy(file_path) if is_regular else None,
         "permisos": format_permissions(st.st_mode),
         "propietario": safe_owner_group(st),
         "fecha_mod": fmt_ts(st.st_mtime),
@@ -984,7 +1377,7 @@ def get_file_info(file_path_str: str,
         "destino_symlink": symlink_target,
         "detalles_contextuales": [],
         "detalles_avanzados": [],
-        "alertas_seguridad": analizar_riesgos_seguridad(file_path, st, is_symlink),
+        "alertas_seguridad": alertas_seg,
     }
 
     if is_dir:
@@ -1000,16 +1393,16 @@ def get_file_info(file_path_str: str,
         return info
 
     # Text / scripts
-    if mime.startswith("text/") or mime in ("application/json","application/xml","application/javascript"):
+    if mime.startswith("text/") or mime in ("application/json", "application/xml", "application/javascript"):
         encoding_hint = "utf-8"
         if CHARDET_AVAILABLE:
             try:
                 with open(file_path, "rb") as f:
                     raw = f.read(4096)
                 det = chardet.detect(raw)
-                if det.get("encoding") and det.get("confidence",0) > 0.5:
+                if det.get("encoding") and det.get("confidence", 0) > 0.5:
                     encoding_hint = det["encoding"]
-                    info["detalles_contextuales"].append(T["encoding"].format(enc=encoding_hint, conf=det["confidence"]*100))
+                    info["detalles_contextuales"].append(T["encoding"].format(enc=encoding_hint, conf=det["confidence"] * 100))
             except Exception:
                 pass
         try:
@@ -1022,12 +1415,13 @@ def get_file_info(file_path_str: str,
                                                      max_lines=secret_limits[1], encoding=encoding_hint,
                                                      enable_heuristics=malware_heuristics)
         info["alertas_seguridad"].extend(secretos)
-        if extra: info.update(extra)
+        if extra:
+            info.update(extra)
 
         # patrones rápidos
         quick_patterns = [
-            (re.compile(r'eval\s*\('), "⚠️ eval()"),
-            (re.compile(r'exec\s*\('), "⚠️ exec()"),
+            (re.compile(r'(?<!\w)eval\s*\('), "⚠️ eval()"),
+            (re.compile(r'(?<!\w)exec\s*\('), "⚠️ exec()"),
             (re.compile(r'__import__\s*\('), "⚠️ dynamic import"),
             (re.compile(r'(subprocess\.call|os\.system)'), "⚠️ shell execution"),
             (re.compile(r'base64\.b64decode'), "⚠️ base64 decode"),
@@ -1047,38 +1441,54 @@ def get_file_info(file_path_str: str,
             info["detalles_contextuales"].append(T["img_meta_error"])
         else:
             detl = []
-            if "size" in meta:   detl.append(T["img_dim"].format(w=meta["size"][0], h=meta["size"][1]))
-            if "format" in meta: detl.append(T["img_fmt"].format(fmt=meta["format"]))
-            if "mode" in meta:   detl.append(T["img_mode"].format(mode=meta["mode"]))
+            if "size" in meta:
+                detl.append(T["img_dim"].format(w=meta["size"][0], h=meta["size"][1]))
+            if "format" in meta:
+                detl.append(T["img_fmt"].format(fmt=meta["format"]))
+            if "mode" in meta:
+                detl.append(T["img_mode"].format(mode=meta["mode"]))
             if meta.get("gps") or meta.get("fields"):
                 detl.append(T["media_meta_present"])
-            info["detalles_contextuales"].append(", ".join(detl))
+            if detl:
+                info["detalles_contextuales"].append(", ".join(detl))
 
     else:
         kind = is_executable_magic(file_path)
         if kind:
             info["detalles_contextuales"].append(T["exec_file"].format(k=kind))
             if kind == "ELF":
+                info["detalles_avanzados"].extend(analyze_elf_header(file_path))
                 comp = run_readelf_comment(file_path)
                 if comp:
                     info["detalles_contextuales"].append(f"{T['compiler']} {comp}")
+            elif kind == "PE":
+                pe_det, pe_alerts = analyze_pe_header(file_path)
+                info["detalles_avanzados"].extend(pe_det)
+                info["alertas_seguridad"].extend(pe_alerts)
+            if info.get("entropia") and info["entropia"] >= 7.2:
+                info["alertas_seguridad"].append(T["high_entropy_exec"].format(ent=info["entropia"]))
         media = extract_media_info(file_path)
         if media:
             det = []
             if media.get("duration_ms"):
-                det.append(T["media_duration"].format(dur=media["duration_ms"]/1000.0))
+                det.append(T["media_duration"].format(dur=media["duration_ms"] / 1000.0))
             if media.get("overall_bitrate"):
-                det.append(T["media_bitrate"].format(br=media["overall_bitrate"]//1000))
+                det.append(T["media_bitrate"].format(br=media["overall_bitrate"] // 1000))
             if det:
                 info["detalles_avanzados"].extend(det)
 
     # Office/PDF
-    info["detalles_avanzados"].extend(analyze_office_pdf(file_path, mime))
+    pdf_det, pdf_alerts = analyze_office_pdf(file_path, mime)
+    info["detalles_avanzados"].extend(pdf_det)
+    info["alertas_seguridad"].extend(pdf_alerts)
 
     # Comprimidos
-    if archives_mode in ("list","deep"):
+    if archives_mode in ("list", "deep"):
         arch = analyze_archives(file_path, archives_mode, secret_limits, enable_heuristics=malware_heuristics)
         if arch:
+            arch_alerts = arch.pop("_archive_security_alerts", [])
+            if arch_alerts:
+                info["alertas_seguridad"].extend(arch_alerts)
             info.update(arch)
 
     # YARA
@@ -1098,6 +1508,7 @@ def get_file_info(file_path_str: str,
         info["_vt_defer"] = True
 
     return info
+
 
 # =================== Export (HTML/PDF) ===================
 DEFAULT_TEMPLATE = """<!DOCTYPE html>
@@ -1124,31 +1535,39 @@ th{background:#fafbfd;text-align:left}
 </body></html>
 """
 
-def render_html_report(results: List[Dict[str,Any]]) -> str:
+
+def render_html_report(results: List[Dict[str, Any]]) -> str:
     rows = []
     for info in results:
-        alerts = "".join(f'<span class="badge">{a}</span>' for a in info.get("alertas_seguridad",[]))
-        det = "<br>".join(info.get("detalles_contextuales",[]))
-        adv = "<br>".join(info.get("detalles_avanzados",[]))
-        hashes = info.get("hashes",{})
-        htable = "".join(f"<div class='kv'>{k.upper()}: {v}</div>" for k,v in hashes.items())
+        alerts = "".join(f'<span class="badge">{_html.escape(str(a))}</span>' for a in info.get("alertas_seguridad", []))
+        det = "<br>".join(_html.escape(str(x)) for x in info.get("detalles_contextuales", []))
+        adv = "<br>".join(_html.escape(str(x)) for x in info.get("detalles_avanzados", []))
+        hashes = info.get("hashes", {})
+        htable = "".join(f"<div class='kv'>{_html.escape(k.upper())}: {_html.escape(str(v))}</div>" for k, v in hashes.items())
         arch = info.get("archive")
         arch_html = ""
         if arch:
-            arch_rows = "".join(f"<tr><td>{e['name']}</td><td>{e['size']}</td><td>{e['type']}</td><td>{' '.join(e.get('alerts',[]))}</td></tr>" for e in arch.get("entries",[]))
-            arch_html = f"<details><summary>Archive: {arch.get('type')}</summary><table><tr><th>Name</th><th>Size</th><th>Type</th><th>Alerts</th></tr>{arch_rows}</table></details>"
+            arch_rows = "".join(
+                f"<tr><td>{_html.escape(str(e['name']))}</td><td>{_html.escape(str(e['size']))}</td>"
+                f"<td>{_html.escape(str(e['type']))}</td><td>{_html.escape(' '.join(e.get('alerts', [])))}</td></tr>"
+                for e in arch.get("entries", [])
+            )
+            arch_html = (
+                f"<details><summary>Archive: {_html.escape(str(arch.get('type')))}</summary>"
+                f"<table><tr><th>Name</th><th>Size</th><th>Type</th><th>Alerts</th></tr>{arch_rows}</table></details>"
+            )
         yara_html = ""
         if info.get("yara_matches"):
-            yara_html = f"<div><strong>YARA:</strong> {' ,'.join(info['yara_matches'])}</div>"
+            yara_html = f"<div><strong>YARA:</strong> {_html.escape(' ,'.join(info['yara_matches']))}</div>"
         rows.append(f"""
         <div class="card">
             <div class="grid">
-                <div><strong>{T['file']}</strong></div><div>{info['nombre']}</div>
-                <div><strong>{T['mime']}</strong></div><div>{info.get('tipo_mime','')}</div>
-                <div><strong>{T['size']}</strong></div><div>{info.get('tamaño_formateado',format_size_iec(info.get('tamaño_bytes',0)))}</div>
-                <div><strong>{T['perms']}</strong></div><div>{info.get('permisos','')}</div>
-                <div><strong>{T['owner']}</strong></div><div>{info.get('propietario','')}</div>
-                <div><strong>{T['alerts']}</strong></div><div>{alerts}</div>
+                <div><strong>{_html.escape(T['file'])}</strong></div><div>{_html.escape(str(info['nombre']))}</div>
+                <div><strong>{_html.escape(T['mime'])}</strong></div><div>{_html.escape(str(info.get('tipo_mime', '')))}</div>
+                <div><strong>{_html.escape(T['size'])}</strong></div><div>{_html.escape(str(info.get('tamaño_formateado', format_size_iec(info.get('tamaño_bytes', 0)))))}</div>
+                <div><strong>{_html.escape(T['perms'])}</strong></div><div>{_html.escape(str(info.get('permisos', '')))}</div>
+                <div><strong>{_html.escape(T['owner'])}</strong></div><div>{_html.escape(str(info.get('propietario', '')))}</div>
+                <div><strong>{_html.escape(T['alerts'])}</strong></div><div>{alerts}</div>
             </div>
             <div>{det}</div>
             <div>{adv}</div>
@@ -1164,7 +1583,8 @@ def render_html_report(results: List[Dict[str,Any]]) -> str:
                        body=body)
     return html
 
-def export_report(results: List[Dict[str,Any]], kind: str, template_path: Optional[Path], out_base: Path) -> List[Path]:
+
+def export_report(results: List[Dict[str, Any]], kind: str, template_path: Optional[Path], out_base: Path) -> List[Path]:
     if template_path:
         # Permitir plantillas con CSS; solo {data} será placeholder
         template_text = template_path.read_text(encoding="utf-8")
@@ -1174,6 +1594,7 @@ def export_report(results: List[Dict[str,Any]], kind: str, template_path: Option
 
     out_paths: List[Path] = []
     html_path = out_base.with_suffix(".html")
+    html_path.parent.mkdir(parents=True, exist_ok=True)
     html_path.write_text(html, encoding="utf-8")
     print(T["export_html_done"].format(p=html_path))
     out_paths.append(html_path)
@@ -1186,6 +1607,7 @@ def export_report(results: List[Dict[str,Any]], kind: str, template_path: Option
             print(T["export_pdf_done"].format(p=pdf_path))
             out_paths.append(pdf_path)
     return out_paths
+
 
 # =================== Dependencias (safety / npm audit) ===================
 def analyze_dependencies(path: Path) -> List[str]:
@@ -1215,27 +1637,34 @@ def analyze_dependencies(path: Path) -> List[str]:
             logging.debug("npm audit error: %s", e)
     return details
 
+
 # =================== CLI ===================
 def parse_algos(s: str) -> Tuple[str, ...]:
     parts = [p.strip().lower() for p in s.split(",") if p.strip()]
-    if not parts: raise argparse.ArgumentTypeError("Empty algorithm list")
+    if not parts:
+        raise argparse.ArgumentTypeError("Empty algorithm list")
     return tuple(parts)
 
-def main() -> int:
+
+def main(argv: Optional[List[str]] = None) -> int:
+    _ensure_utf8_stdio()
     global T
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("-h", "--help", action="store_true")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--jsonl", action="store_true")
+    parser.add_argument("-o", "--output", type=str, help="Output file path")
+    parser.add_argument("--fail-on-alert", "--strict", dest="fail_on_alert", action="store_true")
     parser.add_argument("--nofollow", action="store_true")
     parser.add_argument("--utc", action="store_true")
-    parser.add_argument("--lang", choices=["auto","en","es"], default="auto")
+    parser.add_argument("--lang", choices=["auto", "en", "es"], default="auto")
 
     # Verbose / debug
     parser.add_argument("-v", "--verbose", action="count", default=0)
     parser.add_argument("--debug", action="store_true")
 
     # Recursivo y filtros
-    parser.add_argument("-r","--recursive", action="store_true")
+    parser.add_argument("-r", "--recursive", action="store_true")
     parser.add_argument("--include-pattern", default="", help="Comma globs, e.g. *.py,*.json")
     parser.add_argument("--exclude-dir", default="__pycache__,.git,.hg,.svn,.venv,node_modules")
     parser.add_argument("--exclude-pattern", default="")
@@ -1251,17 +1680,17 @@ def main() -> int:
     # Hashes / secretos
     parser.add_argument("--no-hash", action="store_true")
     parser.add_argument("--hash", type=parse_algos, default=("sha256",))
-    parser.add_argument("--max-secret-bytes", type=int, default=1024*1024)
+    parser.add_argument("--max-secret-bytes", type=int, default=1024 * 1024)
     parser.add_argument("--max-secret-lines", type=int, default=800)
 
     # Extras
     parser.add_argument("--compare", help="FILE2")
-    parser.add_argument("--export", choices=["html","pdf"])
+    parser.add_argument("--export", choices=["html", "pdf"])
     parser.add_argument("--template")
     parser.add_argument("--html", help="Back-compat: export only HTML to this file")
     parser.add_argument("--db-path", default=str(default_db_path()))
     parser.add_argument("--no-cache", action="store_true")
-    parser.add_argument("--archives", choices=["off","list","deep"], default="off")
+    parser.add_argument("--archives", choices=["off", "list", "deep"], default="off")
     parser.add_argument("--yara-rules", default="")
     parser.add_argument("--malware-heuristics", action="store_true")
     parser.add_argument("--plugins-dir", default="")
@@ -1271,7 +1700,7 @@ def main() -> int:
     parser.add_argument("path", nargs='?')
 
     # pre-parse para idioma / logging
-    args, _ = parser.parse_known_args()
+    args, _ = parser.parse_known_args(argv)
     lang = choose_lang(args.lang)
     T = I18N[lang]
 
@@ -1282,8 +1711,10 @@ def main() -> int:
 
     # logging
     level = logging.WARNING
-    if args.verbose == 1: level = logging.INFO
-    elif args.verbose >= 2 or args.debug: level = logging.DEBUG
+    if args.verbose == 1:
+        level = logging.INFO
+    elif args.verbose >= 2 or args.debug:
+        level = logging.DEBUG
     logging.basicConfig(level=level, format="%(levelname)s: %(message)s")
 
     # Historial
@@ -1293,6 +1724,9 @@ def main() -> int:
         rows = cache.show_history(args.history_show)
         if args.json:
             print(json.dumps(rows, indent=2, ensure_ascii=False))
+        elif args.jsonl:
+            for r in rows:
+                print(json.dumps(r, ensure_ascii=False))
         else:
             for r in rows:
                 ts = datetime.fromtimestamp(r["ts"]).strftime("%Y-%m-%d %H:%M:%S")
@@ -1318,27 +1752,35 @@ def main() -> int:
 
     # Tamaño
     size_opt = "auto"
-    if args.bytes: size_opt = "bytes"
-    elif args.kb:  size_opt = "kb"
-    elif args.mb:  size_opt = "mb"
-    elif args.gb:  size_opt = "gb"
+    if args.bytes:
+        size_opt = "bytes"
+    elif args.kb:
+        size_opt = "kb"
+    elif args.mb:
+        size_opt = "mb"
+    elif args.gb:
+        size_opt = "gb"
 
     path = Path(args.path) if args.path else None
-    if not path or not path.exists():
+    if not path or (not path.exists() and not path.is_symlink()):
         print(f"{T['error']}: " + T["file_not_found"].format(f=path), file=sys.stderr)
         return 1
 
     # Objetivos
     targets: List[Path] = []
-    if path.is_dir() or args.recursive:
+    if (path.is_dir() and not (path.is_symlink() and args.nofollow)) or args.recursive:
         root = path if path.is_dir() else path.parent
         for p in walk_filtered(root, include_patterns, exclude_dirs, exclude_patterns, args.max_depth):
             targets.append(p)
-        if path.is_file(): targets.append(path)
-        seen=set(); uniq=[]
+        if path.is_file() or path.is_symlink():
+            targets.append(path)
+        seen = set()
+        uniq = []
         for p in targets:
-            if p in seen: continue
-            seen.add(p); uniq.append(p)
+            if p in seen:
+                continue
+            seen.add(p)
+            uniq.append(p)
         targets = uniq
     else:
         targets = [path]
@@ -1349,25 +1791,30 @@ def main() -> int:
         if not file2.exists():
             print(f"{T['error']}: " + T["file_not_found"].format(f=file2), file=sys.stderr)
             return 1
-        st1 = path.stat(); st2 = file2.stat()
+        st1 = path.stat()
+        st2 = file2.stat()
         hashes1 = calcular_hashes(path, args.hash, cache, st1) if not args.no_hash else {}
         hashes2 = calcular_hashes(file2, args.hash, cache, st2) if not args.no_hash else {}
         comp = []
+        any_diff = False
         for algo in args.hash:
             v1, v2 = hashes1.get(algo), hashes2.get(algo)
             same = (v1 == v2) and v1 not in (None, T["hash_read_error"], T["hash_invalid_algo"])
+            if not same:
+                any_diff = True
             comp.append({"algo": algo, "same": same, "a": v1, "b": v2})
         out = {"compare": {"a": str(path), "b": str(file2), "diffs": comp}}
         if args.json:
-            print(json.dumps(out, indent=2, ensure_ascii=False)); return 0
+            print(json.dumps(out, indent=2, ensure_ascii=False))
+            return 2 if (args.fail_on_alert and any_diff) else 0
         print(c(T["compare_header"], "1;36"))
         for d in comp:
             msg = T["compare_same"] if d["same"] else T["compare_diff"]
             print(" - " + msg.format(algo=d["algo"].upper()))
-        return 0
+        return 2 if (args.fail_on_alert and any_diff) else 0
 
     # Procesamiento
-    results: List[Dict[str,Any]] = []
+    results: List[Dict[str, Any]] = []
     for p in targets:
         try:
             info = get_file_info(
@@ -1386,18 +1833,20 @@ def main() -> int:
             if size_opt == "bytes":
                 size_fmt = f"{size_bytes:,} B"
             elif size_opt == "kb":
-                size_fmt = f"{size_bytes/1000:.2f} KB"
+                size_fmt = f"{size_bytes / 1000:.2f} KB"
             elif size_opt == "mb":
-                size_fmt = f"{size_bytes/1_000_000:.2f} MB"
+                size_fmt = f"{size_bytes / 1_000_000:.2f} MB"
             elif size_opt == "gb":
-                size_fmt = f"{size_bytes/1_000_000_000:.2f} GB"
+                size_fmt = f"{size_bytes / 1_000_000_000:.2f} GB"
             else:
                 size_fmt = format_size_iec(size_bytes)
             info["tamaño_formateado"] = size_fmt
 
             st = None
-            try: st = Path(info["nombre"]).stat()
-            except Exception: pass
+            try:
+                st = Path(info["nombre"]).stat() if not (info.get("es_symlink") and args.nofollow) else Path(info["nombre"]).lstat()
+            except Exception:
+                pass
 
             if not args.no_hash and st and stat.S_ISREG(st.st_mode):
                 info["hashes"] = calcular_hashes(Path(info["nombre"]), args.hash, cache, st)
@@ -1410,7 +1859,7 @@ def main() -> int:
                 if sha256 and "ERROR" not in sha256:
                     vt = check_virustotal(sha256, args.vt_api_key)
                     if vt:
-                        if vt["malicious"]==0 and vt["suspicious"]==0:
+                        if vt["malicious"] == 0 and vt["suspicious"] == 0:
                             info["detalles_avanzados"].append(T["vt_clean"].format(total=vt["total"]))
                         else:
                             info["alertas_seguridad"].append(
@@ -1430,7 +1879,7 @@ def main() -> int:
                 "archives": args.archives, "malware_heuristics": args.malware_heuristics
             }
             try:
-                cache.save_history(Path(info["nombre"]), st or Path(info["nombre"]).stat(), sha256, opts_for_hist, info)
+                cache.save_history(Path(info["nombre"]), st, sha256, opts_for_hist, info)
             except Exception as e:
                 logging.debug("history save error: %s", e)
 
@@ -1442,13 +1891,28 @@ def main() -> int:
 
     # Salidas
     if args.export or args.html:
-        out_base = (Path(args.html) if args.html else (Path.cwd() / f"fileinspect_report_{int(time.time())}"))
+        out_base = Path(args.html) if args.html else (Path(args.output) if args.output else (Path.cwd() / f"fileinspect_report_{int(time.time())}"))
         template_path = Path(args.template) if args.template else None
         export_kind = "html" if args.html else args.export
-        export_report(results, export_kind, template_path, out_base if args.html else out_base)
+        export_report(results, export_kind, template_path, out_base)
 
-    if args.json:
-        print(json.dumps(results if len(results)!=1 else results[0], indent=2, ensure_ascii=False))
+    if args.jsonl:
+        lines = [json.dumps(r, ensure_ascii=False) for r in results]
+        payload = "\n".join(lines) + ("\n" if lines else "")
+        if args.output and not (args.export or args.html):
+            out_p = Path(args.output)
+            out_p.parent.mkdir(parents=True, exist_ok=True)
+            out_p.write_text(payload, encoding="utf-8")
+        else:
+            print(payload, end="")
+    elif args.json:
+        payload = json.dumps(results if len(results) != 1 else results[0], indent=2, ensure_ascii=False)
+        if args.output and not (args.export or args.html):
+            out_p = Path(args.output)
+            out_p.parent.mkdir(parents=True, exist_ok=True)
+            out_p.write_text(payload + "\n", encoding="utf-8")
+        else:
+            print(payload)
     elif not args.export and not args.html:
         for info in results:
             print(c(T["file"], "1;36"), f"     {info['nombre']}")
@@ -1456,47 +1920,58 @@ def main() -> int:
                 print(c(T["realpath"], "1;36"), f"   {info['realpath']}")
             if info.get("es_symlink"):
                 print(c(T["symlink"], "1;36"), f"    {T['details_arrow']} {info.get('destino_symlink')}")
-            print(c(T["mime"], "1;36"), f" {info.get('tipo_mime','')}")
-            print(c(T["size"], "1;36"), f"    {info.get('tamaño_formateado','')}")
-            print("-"*40)
-            print(c(T["perms"], "1;36"), f" {info.get('permisos','')} (Inodo: {info.get('inodo')})")  # noqa
-            print(c(T["owner"], "1;36"), f" {info.get('propietario','')}")  # noqa
+            print(c(T["mime"], "1;36"), f" {info.get('tipo_mime', '')}")
+            print(c(T["size"], "1;36"), f"    {info.get('tamaño_formateado', '')}")
+            if info.get("entropia") is not None:
+                print(c(T["entropy"], "1;36"), f" {info['entropia']:.2f} / 8.00 bits/byte")
+            print("-" * 40)
+            print(c(T["perms"], "1;36"), f" {info.get('permisos', '')} (Inodo: {info.get('inodo')})")  # noqa
+            print(c(T["owner"], "1;36"), f" {info.get('propietario', '')}")  # noqa
             if info.get('alertas_seguridad'):
                 print(c(T["alerts"], "1;33"))
                 for a in info['alertas_seguridad']:
                     print(f"  - {a}")
-            print("-"*40)
+            print("-" * 40)
             print(c(T["modified"], "1;36"), f"  {info.get('fecha_mod')}")
             print(c(T["accessed"], "1;36"), f"  {info.get('fecha_acc')}")
             print(c(T["created"], "1;36"), f"  {info.get('fecha_cre')}")
             if info.get('detalles_contextuales'):
-                print("-"*40)
+                print("-" * 40)
                 for d in info['detalles_contextuales']:
                     print(c(T["details_arrow"], "1;32"), d)
             if info.get('detalles_avanzados'):
-                print("-"*40)
+                print("-" * 40)
                 print(c(T["advanced"], "1;35"))
                 for d in info['detalles_avanzados']:
                     print(c(T["details_arrow"], "1;35"), d)
             if info.get("archive"):
-                print("-"*40)
+                print("-" * 40)
                 print("Archive:", info["archive"].get("type"))
-                for e in info["archive"].get("entries",[]):
-                    print(f"   - {e['name']} ({e['size']}) [{e['type']}] {' '.join(e.get('alerts',[]))}")
+                for e in info["archive"].get("entries", []):
+                    print(f"   - {e['name']} ({e['size']}) [{e['type']}] {' '.join(e.get('alerts', []))}")
             if info.get("yara_matches"):
-                print("-"*40)
+                print("-" * 40)
                 print("YARA:", ", ".join(info["yara_matches"]))
-            print("-"*40)
+            print("-" * 40)
             print(c(T["integrity"], "1;36"))
-            for algo, h in info.get("hashes",{}).items():
+            for algo, h in info.get("hashes", {}).items():
                 print(f"  {algo.upper()}: {h}")
             print()
 
+    if args.fail_on_alert:
+        has_alerts = any(
+            bool(r.get("alertas_seguridad")) or bool(r.get("yara_matches")) or bool(r.get("malware_heuristics"))
+            for r in results
+        )
+        if has_alerts:
+            return 2
+
     return 0
+
 
 def cli_main():
     raise SystemExit(main())
 
+
 if __name__ == "__main__":
     cli_main()
-

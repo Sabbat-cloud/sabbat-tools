@@ -15,6 +15,35 @@ Requires-Dist: regex>=2024.4.16; extra == "hardened"
 Provides-Extra: text
 Requires-Dist: python-docx; extra == "text"
 Requires-Dist: odfpy; extra == "text"
+Provides-Extra: pdf
+Requires-Dist: pdfminer.six>=20221105; extra == "pdf"
+Provides-Extra: rtf
+Requires-Dist: striprtf>=0.0.26; extra == "rtf"
+Provides-Extra: html
+Requires-Dist: beautifulsoup4>=4.12.2; extra == "html"
+Provides-Extra: epub
+Requires-Dist: ebooklib>=0.18; extra == "epub"
+Requires-Dist: beautifulsoup4>=4.12.2; extra == "epub"
+Provides-Extra: excel
+Requires-Dist: openpyxl>=3.1.2; extra == "excel"
+Provides-Extra: pptx
+Requires-Dist: python-pptx>=0.6.23; extra == "pptx"
+Provides-Extra: ocr
+Requires-Dist: pytesseract>=0.3.10; extra == "ocr"
+Requires-Dist: pdf2image>=1.17.0; extra == "ocr"
+Requires-Dist: Pillow>=10.0.0; extra == "ocr"
+Provides-Extra: rawtext
+Requires-Dist: python-docx; extra == "rawtext"
+Requires-Dist: odfpy; extra == "rawtext"
+Requires-Dist: pdfminer.six>=20221105; extra == "rawtext"
+Requires-Dist: striprtf>=0.0.26; extra == "rawtext"
+Requires-Dist: beautifulsoup4>=4.12.2; extra == "rawtext"
+Requires-Dist: ebooklib>=0.18; extra == "rawtext"
+Requires-Dist: openpyxl>=3.1.2; extra == "rawtext"
+Requires-Dist: python-pptx>=0.6.23; extra == "rawtext"
+Requires-Dist: pytesseract>=0.3.10; extra == "rawtext"
+Requires-Dist: pdf2image>=1.17.0; extra == "rawtext"
+Requires-Dist: Pillow>=10.0.0; extra == "rawtext"
 Provides-Extra: geoip
 Requires-Dist: geoip2>=4.7.0; extra == "geoip"
 Requires-Dist: maxminddb>=2.6.2; extra == "geoip"
@@ -59,6 +88,14 @@ Requires-Dist: pyroute2>=0.7.12; platform_system == "Linux" and extra == "full"
 Requires-Dist: colorama>=0.4.6; platform_system == "Windows" and extra == "full"
 Requires-Dist: odfpy; extra == "full"
 Requires-Dist: python-docx; extra == "full"
+Requires-Dist: pdfminer.six>=20221105; extra == "full"
+Requires-Dist: striprtf>=0.0.26; extra == "full"
+Requires-Dist: beautifulsoup4>=4.12.2; extra == "full"
+Requires-Dist: ebooklib>=0.18; extra == "full"
+Requires-Dist: openpyxl>=3.1.2; extra == "full"
+Requires-Dist: python-pptx>=0.6.23; extra == "full"
+Requires-Dist: pytesseract>=0.3.10; extra == "full"
+Requires-Dist: pdf2image>=1.17.0; extra == "full"
 Requires-Dist: pytest>=8.3.0; extra == "full"
 Requires-Dist: pytest-cov>=5.0.0; extra == "full"
 Requires-Dist: ruff>=0.6.9; extra == "full"
@@ -78,6 +115,7 @@ Dynamic: license-file
     - [🕵️ sabbat-fileinspect — File Inspector](#-sabbat-fileinspect--file-inspector)
     - [🔧 sabbat-syscheck — System Auditor (read-only)](#-sabbat-syscheck--system-auditor-read-only)
       - [cronaudit subcommand (Cron + systemd timers)](#cronaudit-subcommand-cron--systemd-timers)
+    - [📝 sabbat-rawtext — Plain-Text Extractor (.docx/.odt/.ods/.txt)](#-sabbat-rawtext--plain-text-extractor-docxodtods-txt)
     - [🌐 sabbat-netinspect — Network & Connections Inspector](#-sabbat-netinspect--network--connections-inspector)
   - [Troubleshooting](#troubleshooting)
   - [Development](#development)
@@ -109,6 +147,7 @@ Dynamic: license-file
   - [📊 sabbat-loganalyce — Advanced Log Analyzer](#-sabbat-loganalyce--advanced-log-analyzer)
   - [🕵️ sabbat-fileinspect — File Inspector](#-sabbat-fileinspect--file-inspector)
   - [🔧 sabbat-syscheck — System Auditor (read-only)](#-sabbat-syscheck--system-auditor-read-only)
+  - [📝 sabbat-rawtext — Plain-Text Extractor (.docx/.odt/.ods/.txt)](#-sabbat-rawtext--plain-text-extractor-docxodtods-txt)
   - [🌐 sabbat-netinspect — Network & Connections Inspector](#-sabbat-netinspect--network--connections-inspector)
 - [Troubleshooting](#troubleshooting)
 - [Development](#development)
@@ -130,7 +169,7 @@ pip install -e ".[full]"
 # pipx install "sabbat-tools[full]"
 ```
 
-After install, you’ll have the `sabbat-loganalyce`, `sabbat-fileinspect`, `sabbat-syscheck` and `sabbat-netinspect` commands on PATH.
+After install, you’ll have the `sabbat-loganalyce`, `sabbat-fileinspect`, `sabbat-syscheck`, **`sabbat-rawtext`** and `sabbat-netinspect` commands on PATH.
 
 ---
 
@@ -144,7 +183,8 @@ After install, you’ll have the `sabbat-loganalyce`, `sabbat-fileinspect`, `sab
   * `images`: `Pillow` to safely read image metadata.
   * `sys`: `psutil`, `distro`, `humanfriendly`.
   * `net`: `psutil`, `ifaddr`, `dnspython`, `requests`, (`pyroute2` on Linux).
-  * **`codecs` (new)**: `zstandard` to read `.zst` logs in **sabbat-loganalyce** (other formats built-in: `.gz`, `.bz2`, `.xz`, `.lzma`).
+  * **`codecs` (new)**: `zstandard` to read `.zst` logs in **sabbat-loganalyce** (other formats built‑in: `.gz`, `.bz2`, `.xz`, `.lzma`).
+  * **`text` (new)**: `python-docx`, `odfpy` for **sabbat-rawtext** (DOCX/ODT/ODS → TXT).
 
 ---
 
@@ -194,11 +234,25 @@ sabbat-loganalyce app.log --json --hardened-regex --since "2025-09-01" --until "
 ### 🕵️ sabbat-fileinspect — File Inspector
 [Manual](docs/FILEINSPECT.md) · [In Spanish](docs/FILEINSPECT-ES.md)
 
-Security‑focused, portable file inspector. Understands text, images and common binary types.
+Security‑focused, portable file inspector for text, images, archives, documents, and binaries.
 
+**Highlights (recent)**
+- **Native magic-byte engine & extension spoofing detection**: identifies `ELF`, `PE`, `Mach-O`, `PDF`, `ZIP/OOXML`, compressed streams, images, and plain text without external dependencies, flagging extension/content mismatches (e.g., a PE executable disguised as `.jpg`) and suspicious double extensions (`invoice.pdf.exe`).
+- **Shannon entropy & native binary headers**: computes file-level entropy (`0.0–8.0` bits/byte) to detect packed/encrypted payloads, and parses **PE** (architecture, `EXE`/`DLL`, build timestamp, packer sections like `UPX0`) and **ELF** headers in pure Python.
+- **Expanded secret & malware heuristics**: detects plaintext passwords, API keys, **JWT**, **Slack**, **Google Cloud**, **Stripe**, **AWS** keys, **database connection URIs** with credentials, credit cards (Luhn), PowerShell cradles, and reverse shells.
+- **Archive & document hardening**: detects **Zip Slip** (path traversal) and **Zip Bombs** in `.zip`/`.tar*`, plus risky active PDF tags (`/JavaScript`, `/OpenAction`, `/Launch`, `/EmbeddedFiles`) and Office VBA macros (`vbaProject.bin`).
+- **Automation & CI-ready**: `--json`, `--jsonl`, `-o / --output`, XSS-safe HTML/PDF reports, SQLite hash cache, and `--fail-on-alert` (`--strict`) returning exit code `2` on findings.
+
+**Examples**
 ```bash
 # Force Spanish + UTC + multiple hashes + JSON
 sabbat-fileinspect --lang es --utc --hash sha256,sha1 --json /etc/hosts
+
+# Recursive scan for secrets & malware heuristics into JSONL (exit 2 if alerts found)
+sabbat-fileinspect -r . --include-pattern "*.py,*.sh,*.env" --malware-heuristics --fail-on-alert --jsonl -o scan.jsonl
+
+# Deep archive inspection (detects Zip Slip, Zip Bombs, and embedded secrets)
+sabbat-fileinspect backup.zip --archives deep --malware-heuristics --json
 ```
 
 ---
@@ -218,7 +272,7 @@ sabbat-syscheck --json > syscheck.json
 sabbat-syscheck --jsonl | jq .
 
 # Raw TSV (easy grepping)
-sabbat-syscheck --raw --no-group | column -t -s $'\t'
+sabbat-syscheck --raw --no-group | column -t -s $'	'
 ```
 #### cronaudit subcommand (Cron + systemd timers)
 
@@ -247,19 +301,55 @@ sabbat-syscheck cronaudit --only timers
 ```
 ---
 
+### 📝 sabbat-rawtext — Plain-Text Extractor (.docx/.odt/.ods/.txt)
+
+Convert Office/OpenDocument files to clean **UTF-8 `.txt`** locally. Preserves reading order, flattens tables (row → line, cells joined by spaces) and saves robustly on Windows (sanitized names, fallback to *Documents*/temp, `-1`, `-2` suffixes if busy).
+
+**Requires**: extra `text` (`python-docx`, `odfpy`) — included in `[full]`.
+
+**Examples**
+```bash
+# Interactive (asks for a file path)
+sabbat-rawtext
+
+# Non-interactive (one or more files)
+sabbat-rawtext "Report Q3.docx" sheet.ods notes.odt
+
+# Wildcards (on Windows, globs are expanded internally)
+sabbat-rawtext *.docx docs/*.odt "invoices 2025/*.ods"
+```
+
+**Notes**
+- Supported: `.docx`, `.odt`, `.ods`, `.txt` (re-normalizes).  
+- Legacy `.doc` → not supported (convert to `.docx` first).
+- Exit code: `0` all OK, `1` if any target failed (unsupported/read/save).
+
+---
+
 ### 🌐 sabbat-netinspect — Network & Connections Inspector
 [Manual](docs/NETINSPECT.md) · [In Spanish](docs/NETINSPECT-ES.md)
-See [Troubleshooting](docs/NETINSPECT-TROUBLESHOOTING-ES.md)
+See [Troubleshooting](docs/NETINSPECT-TROUBLESHOOTING.md)
 
-Portable (psutil‑based) inspector for live network state: connections, listening ports, process correlation, optional GeoIP, local threat intel, port whitelist checks, snapshots & diffs.
+Portable (`psutil`‑based) inspector for live network state: connections, listening ports, process and `systemd` unit correlation, optional GeoIP, local threat intel, port whitelist checks, snapshots & diffs.
+
+**Highlights (recent)**
+- **Granular filtering**: filter by `--proto {tcp,udp,all}`, `--state`, `--scope {all,own}`, `--pid`, `--user`, `--proc <name>`, `--laddr <IP/CIDR>`, `--raddr <IP/CIDR>`, `--lport`, `--rport`, `--only-public`, and `--only-suspicious`.
+- **CIDR Threat Intel & Port Range Whitelists**: local Threat Intel CSV (`--ti-csv`) matches both exact IPs and IPv4/IPv6 CIDR subnets (`198.51.100.0/24`); port whitelists support single ports (`tcp/22`), ranges (`tcp/8000-8100`), and wildcards (`tcp/*`).
+- **Security heuristics**: flags exposed sensitive services on `0.0.0.0`/`::` (`exposed_sensitive_port` for Redis, MongoDB, Docker API, MySQL, PostgreSQL, RDP, SMB, etc.), C2/miner ports (`c2_like_port`), processes running from `/tmp` or `/dev/shm` (`proc_suspicious_path`), and unauthorized listening ports (`not_in_whitelist`).
+- **Fast concurrent enrichment**: parallel, cached reverse DNS (`--rdns`) bounded by `--deadline-sec`, cached GeoIP lookups, and detailed human/JSON snapshot diffs (`--snapshot`, `--diff`).
 
 **Examples**
 ```bash
 # JSON with GeoIP and connection cap
 sabbat-netinspect --json --geoip-db /var/lib/GeoIP/GeoLite2-Country.mmdb --max-conns 500
 
-# Threat‑intel CSV + whitelist check for listening ports
-sabbat-netinspect --check-threat-intel --ti-csv feeds/blacklist.csv                       --check-ports --whitelist /etc/allowed_ports.conf
+# Only public established connections or suspicious findings
+sabbat-netinspect --only-public --state established
+sabbat-netinspect --only-suspicious
+
+# Threat‑intel CSV (exact IPs + CIDR) + whitelist check for listening ports
+sabbat-netinspect --check-threat-intel --ti-csv feeds/blacklist.csv \
+                  --check-ports --whitelist /etc/allowed_ports.conf
 ```
 ---
 
@@ -290,36 +380,37 @@ sabbat_tools/
     ├── README-ES.md
     ├── README.md
     ├── docs
-    │   ├── FILEINSPECT-ES.md
-    │   ├── FILEINSPECT.md
-    │   ├── LOGANALYCE-ES.md
-    │   ├── LOGANALYCE.md
-    │   ├── NETINSPECT-ES.md
-    │   ├── NETINSPECT-TROUBLESHOOTING-ES.md
-    │   ├── NETINSPECT-TROUBLESHOOTING.md
-    │   ├── NETINSPECT.md
-    │   ├── SYSCHECK-ES.md
-    │   └── SYSCHECK.md
+    │   ├── FILEINSPECT-ES.md
+    │   ├── FILEINSPECT.md
+    │   ├── LOGANALYCE-ES.md
+    │   ├── LOGANALYCE.md
+    │   ├── NETINSPECT-ES.md
+    │   ├── NETINSPECT-TROUBLESHOOTING-ES.md
+    │   ├── NETINSPECT-TROUBLESHOOTING.md
+    │   ├── NETINSPECT.md
+    │   ├── SYSCHECK-ES.md
+    │   └── SYSCHECK.md
     ├── pyproject.toml
     ├── pytest.ini
     ├── requirements-dev.txt
     ├── requirements.txt
     ├── sabbat_tools
-    │   ├── __init__.py
-    │   ├── audits
-    │   ├── fileinspect.py
-    │   ├── loganalyce.py
-    │   ├── netinspect.py
-    │   └── syscheck.py
+    │   ├── __init__.py
+    │   ├── audits
+    │   ├── fileinspect.py
+    │   ├── loganalyce.py
+    │   ├── netinspect.py
+    │   ├── rawtext.py
+    │   └── syscheck.py
     ├── scripts
-    │   └── gen_toc.py
+    │   └── gen_toc.py
     ├── tests
-    │   ├── conftest.py
-    │   ├── pysql
-    │   ├── test_fileinspect.py
-    │   ├── test_loganalyce.py
-    │   ├── test_netinspect.py
-    │   └── test_syscheck.py
+    │   ├── conftest.py
+    │   ├── pysql
+    │   ├── test_fileinspect.py
+    │   ├── test_loganalyce.py
+    │   ├── test_netinspect.py
+    │   └── test_syscheck.py
     └── tree.txt
 ```
 
@@ -334,3 +425,4 @@ PRs and issues welcome. Please keep the philosophy:
 
 ## License
 MIT © Óscar Giménez Blasco
+

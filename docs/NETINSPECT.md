@@ -38,30 +38,39 @@ sabbat-netinspect --json | jq '.summary, .findings[:3]'
 ## Filters & Scopes
 - Protocol: `--proto {tcp,udp,all}`
 - State: `--state {listening,established,all}`
-- Scope: `--scope {own,all}` (note: `all` may require root)
-- PID / User filters: `--pid`, `--user`
+- Scope: `--scope {own,all}` (note: `all` may require root; `own` filters to current user)
+- PID / User / Process filters: `--pid`, `--user`, `--proc <substring>`
+- IP / CIDR filters: `--laddr 127.0.0.1,10.0.0.0/8`, `--raddr 203.0.113.0/24`
 - Ports: `--lport 80,443,8000-8100`, `--rport 53,123`
+- Quick security filters: `--only-public` (only global remote IPs), `--only-suspicious` (only flagged connections)
 - Include UNIX sockets: `--include-unix`
 
 ## Enrichment
-- Reverse DNS: `--rdns` (with `--deadline-sec` budget)
-- GeoIP: `--geoip-db /path/to/GeoLite2-Country.mmdb` (requires `geoip2`)
+- Reverse DNS: `--rdns` (concurrent batch resolution with cache and `--deadline-sec` budget)
+- GeoIP: `--geoip-db /path/to/GeoLite2-Country.mmdb` (requires `geoip2`, cached per IP)
+- Linux `systemd` service correlation via `/proc/<pid>/cgroup`
 
-## Policy Checks
+## Policy Checks & Security Heuristics
+- Built-in security flags:
+  - `exposed_sensitive_port`: critical service (Redis, MongoDB, Docker API, MySQL, PostgreSQL, RDP, SMB, Telnet, FTP, etc.) listening on `0.0.0.0` or `::`
+  - `exposed_high_port`: high port ($\ge 1024$) listening on wildcard `0.0.0.0` or `::`
+  - `c2_like_port`: established connection to known C2/IRC/cryptominer/Tor ports
+  - `proc_suspicious_path`: process running from `/tmp`, `/var/tmp`, `/dev/shm`, or `Temp`
 - Whitelist listening ports:
 ```bash
 sabbat-netinspect --check-ports --whitelist /etc/allowed_ports.conf
 ```
-Whitelist file format:
+Whitelist file format (supports single ports, ranges, and wildcards):
 ```
 # comments allowed
 tcp/22
 tcp/443
+tcp/8000-8010
 udp/53
 tcp/*      # allow all tcp (dev only)
 ```
 
-- Local Threat‑Intel CSV:
+- Local Threat‑Intel CSV (supports exact IPs and IPv4/IPv6 CIDR subnets):
 ```bash
 sabbat-netinspect --check-threat-intel --ti-csv feeds/blacklist.csv --json
 ```
@@ -69,6 +78,7 @@ CSV minimal columns:
 ```csv
 ip,source,confidence
 203.0.113.50,local,95
+198.51.100.0/24,spamhaus_drop,90
 ```
 
 ## Snapshots & Diffs
